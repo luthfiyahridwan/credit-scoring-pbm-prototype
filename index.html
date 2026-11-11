@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prototipe Credit Scoring PBM</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* Arah: alat kerja analis. Panel putih di atas latar abu kebiruan, aksen teal, warna status terpisah dari aksen. */
+:root{
+  --bg:#f2f5f8; --surface:#ffffff; --ink:#14202e; --muted:#566475; --line:#d8dfe7;
+  --accent:#0b6b74; --accent-ink:#ffffff; --accent-soft:#dff0f1;
+  --good:#1c7448; --good-soft:#e0f3e8; --warn:#8f5b00; --warn-soft:#fcefd0; --bad:#a32f2d; --bad-soft:#fae3e2;
+  --head:#12304f; --head-ink:#ffffff;
+  --font:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif; --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0e1520; --surface:#162130; --ink:#e5ecf4; --muted:#9aa9ba; --line:#2a3746;
+    --accent:#4cc3cc; --accent-ink:#06222a; --accent-soft:#143a40;
+    --good:#62d39b; --good-soft:#12352a; --warn:#f0bf5a; --warn-soft:#3a2d10; --bad:#f08783; --bad-soft:#401b1a;
+    --head:#0a2036; --head-ink:#e5ecf4; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0e1520; --surface:#162130; --ink:#e5ecf4; --muted:#9aa9ba; --line:#2a3746;
+  --accent:#4cc3cc; --accent-ink:#06222a; --accent-soft:#143a40;
+  --good:#62d39b; --good-soft:#12352a; --warn:#f0bf5a; --warn-soft:#3a2d10; --bad:#f08783; --bad-soft:#401b1a;
+  --head:#0a2036; --head-ink:#e5ecf4; color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--font);-webkit-font-smoothing:antialiased}
+h1,h2,h3{margin:0;text-wrap:balance}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.top{background:var(--head);color:var(--head-ink)}
+.top-in{max-width:1180px;margin:0 auto;padding:14px 16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;justify-content:space-between}
+.brand{display:flex;flex-direction:column}
+.brand b{font-size:17px;font-weight:700;letter-spacing:.1px}
+.brand span{font-size:12.5px;opacity:.8}
+.tag{font-size:12px;font-weight:600;padding:4px 10px;border-radius:999px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.25)}
+
+.shell{max-width:1180px;margin:0 auto;padding:18px 16px 48px;display:grid;grid-template-columns:230px 1fr;gap:20px;align-items:start}
+@media (max-width:860px){.shell{grid-template-columns:1fr}}
+main{min-width:0}
+.steps{display:flex;flex-direction:column;gap:6px;position:sticky;top:12px}
+@media (max-width:860px){.steps{flex-direction:row;overflow-x:auto;position:static;padding-bottom:4px}}
+.step{display:flex;flex-direction:column;gap:2px;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px;cursor:pointer;min-width:150px}
+.step .n{font-size:11.5px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.6px}
+.step .t{font-weight:600}
+.step .s{font-size:12.5px;color:var(--muted);min-height:18px}
+.step[aria-current="page"]{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+.step[aria-current="page"] .n{color:var(--accent)}
+.sep{height:1px;background:var(--line);margin:6px 0}
+@media (max-width:860px){.sep{display:none}}
+
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:16px}
+.panel h2{font-size:18px;margin-bottom:4px}
+.panel h3{font-size:15px;margin-bottom:8px}
+.lead{color:var(--muted);margin:0 0 14px;max-width:70ch}
+.view{display:none}.view.on{display:block}
+
+.presets{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+.presets .lbl{font-size:13px;color:var(--muted);margin-right:4px}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:7px 12px;cursor:pointer;font-weight:500}
+.btn:hover{border-color:var(--accent)}
+.btn.pri{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.pri:hover{filter:brightness(1.08)}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px 14px}
+.fld{display:flex;flex-direction:column;gap:4px}
+.fld label{font-size:13px;font-weight:600}
+.fld .hint{font-size:12px;color:var(--muted)}
+.fld input,.fld select,.fld textarea{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:8px 10px;width:100%}
+.fld input:focus,.fld select:focus,.fld textarea:focus{border-color:var(--accent)}
+.grp{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--accent);margin:18px 0 8px;grid-column:1/-1}
+.grp:first-child{margin-top:0}
+
+.derived{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}
+.chip{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.chip .k{font-size:12px;color:var(--muted)}
+.chip .v{font-weight:600;font-family:var(--mono);font-size:14.5px}
+.chip .w{font-size:12px;color:var(--muted)}
+
+table{border-collapse:collapse;width:100%}
+.tw{overflow-x:auto}
+th,td{padding:9px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top;font-size:14px}
+th{font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:700;white-space:nowrap}
+td.num,th.num{text-align:right;font-family:var(--mono);white-space:nowrap}
+td.c,th.c{text-align:center}
+.sub{display:block;font-size:12.5px;color:var(--muted)}
+
+.pill{display:inline-block;padding:2px 10px;border-radius:999px;font-size:12.5px;font-weight:700;white-space:nowrap}
+.p-ya{background:var(--good-soft);color:var(--good)}
+.p-tidak{background:var(--bad-soft);color:var(--bad)}
+.p-belum{background:var(--warn-soft);color:var(--warn)}
+.p-na{background:var(--bg);color:var(--muted);border:1px solid var(--line)}
+.mini{font-size:11.5px;font-weight:600;color:var(--muted);border:1px solid var(--line);border-radius:6px;padding:1px 6px;margin-left:6px;white-space:nowrap}
+
+.banner{display:flex;gap:14px;align-items:center;flex-wrap:wrap;border-radius:12px;padding:16px 18px;margin-bottom:16px;border:1px solid}
+.banner b{font-size:20px}
+.banner.ok{background:var(--good-soft);color:var(--good);border-color:var(--good)}
+.banner.no{background:var(--bad-soft);color:var(--bad);border-color:var(--bad)}
+.banner.wait{background:var(--warn-soft);color:var(--warn);border-color:var(--warn)}
+.banner .why{font-size:14px;color:var(--ink);flex-basis:100%}
+
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{border:0;background:var(--surface);padding:5px 12px;cursor:pointer;font-weight:600;font-size:13px;border-right:1px solid var(--line)}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed="true"].ya{background:var(--good-soft);color:var(--good)}
+.seg button[aria-pressed="true"].tidak{background:var(--bad-soft);color:var(--bad)}
+.seg button[aria-pressed="true"].na{background:var(--bg);color:var(--muted)}
+.seg button:disabled{cursor:not-allowed;opacity:.55}
+
+.two{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media (max-width:860px){.two{grid-template-columns:1fr}}
+
+.bar{height:10px;border-radius:6px;background:var(--bg);border:1px solid var(--line);overflow:hidden;min-width:90px}
+.bar i{display:block;height:100%;background:var(--accent)}
+.total{display:flex;gap:20px;align-items:center;flex-wrap:wrap}
+.big{font-family:var(--mono);font-size:46px;font-weight:500;line-height:1}
+.risk{font-size:20px;font-weight:700}
+.scale{display:flex;border-radius:8px;overflow:hidden;border:1px solid var(--line);height:34px;margin-top:10px}
+.scale div{display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;position:relative}
+.scale div.cur{outline:3px solid var(--ink);outline-offset:-3px}
+.scalewrap{position:relative;padding-top:12px}
+.mark{position:absolute;top:0;width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-top:10px solid var(--ink);transform:translateX(-7px)}
+.flags{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:8px}
+.flags li{padding:9px 12px;border-radius:8px;border:1px solid var(--line);background:var(--bg);font-size:14px}
+.flags li.w{background:var(--warn-soft);border-color:var(--warn);color:var(--ink)}
+.flags li.b{background:var(--bad-soft);border-color:var(--bad)}
+.flags li.g{background:var(--good-soft);border-color:var(--good)}
+.note{font-size:13px;color:var(--muted)}
+.edit input[type=number]{width:78px;border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:4px 6px;text-align:right;font-family:var(--mono)}
+.edit input[type=text]{width:100%;border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:4px 6px}
+.toast{margin-top:10px;padding:10px 12px;border-radius:8px;background:var(--accent-soft);border:1px solid var(--accent);font-size:14px;display:none}
+.toast.on{display:block}
+.ctl{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:6px 8px;width:100%;min-width:130px}
+.ctl:focus{border-color:var(--accent)}
+.ctl2{display:flex;flex-direction:column;gap:6px}
+.ctl2 small{font-size:11.5px;color:var(--muted);display:block;margin-bottom:2px}
+.doc-head{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;align-items:flex-start;padding-bottom:14px;border-bottom:2px solid var(--ink);margin-bottom:16px}
+.doc-head h2{font-size:20px}
+.stamp{font-weight:700;font-size:16px;letter-spacing:.6px;text-transform:uppercase;padding:8px 14px;border:2px solid;border-radius:8px;transform:rotate(-2deg)}
+.stamp.ok{color:var(--good);border-color:var(--good);background:var(--good-soft)}
+.stamp.wait{color:var(--warn);border-color:var(--warn);background:var(--warn-soft)}
+.stamp.no{color:var(--bad);border-color:var(--bad);background:var(--bad-soft)}
+.kv{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px 16px;margin:0 0 16px}
+.kv div{display:flex;flex-direction:column}
+.kv dt{font-size:12px;color:var(--muted)}
+.kv dd{margin:0;font-weight:600}
+.dsec{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--accent);margin:18px 0 8px}
+.sign{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:22px}
+.sign div{border-top:1px solid var(--ink);padding-top:6px;font-size:13px;color:var(--muted)}
+.foot{font-size:12.5px;color:var(--muted);text-align:center;padding:8px 16px 28px}
+@media (prefers-reduced-motion: no-preference){.bar i{transition:width .25s}}
+</style>
+</head>
+<body>
+<header class="top"><div class="top-in">
+  <div class="brand"><b>Credit Scoring PBM</b><span>Pembiayaan Belanja Member, alur analisis kredit</span></div>
+  <span class="tag">Prototipe, semua data fiktif</span>
+</div></header>
+
+<div class="shell">
+  <nav class="steps" id="steps" aria-label="Langkah analisis"></nav>
+  <main>
+
+  <!-- 1 INPUT -->
+  <section class="view" id="v-input">
+    <div class="panel">
+      <h2>Data pengajuan</h2>
+      <p class="lead">Analis mengisi data pengajuan. Sistem menentukan kriteria dan poin dari angka yang diinput, jadi tidak ada tier yang dipilih manual.</p>
+      <div class="presets" id="presets"><span class="lbl">Isi contoh:</span></div>
+      <div class="grid" id="form">
+        <div class="grp">Identitas calon debitur</div>
+        <div class="fld"><label for="f_nama">Nama calon debitur</label><input id="f_nama" type="text" autocomplete="off"></div>
+        <div class="fld"><label for="f_nik">NIK</label><input id="f_nik" type="text" inputmode="numeric" maxlength="16" autocomplete="off"><span class="hint">16 digit, dikirim ke Beeza</span></div>
+        <div class="fld"><label for="f_tmp">Tempat lahir</label><input id="f_tmp" type="text" autocomplete="off"></div>
+        <div class="fld"><label for="f_tgllahir">Tanggal lahir</label><input id="f_tgllahir" type="date"></div>
+        <div class="fld"><label for="f_status">Status perkawinan</label><select id="f_status"><option>Menikah</option><option>Belum Menikah</option></select></div>
+        <div class="fld"><label for="f_ajuan">Tanggal pengajuan</label><input id="f_ajuan" type="date"></div>
+
+        <div class="grp">Hubungan dengan Indogrosir</div>
+        <div class="fld"><label for="f_merah">Status hubungan supplier</label><select id="f_merah"><option>Aktif</option><option>Tidak aktif</option></select><span class="hint">Member Merah masih berlaku. Input manual di V1.</span></div>
+        <div class="fld"><label for="f_join">Tanggal join member</label><input id="f_join" type="date"></div>
+        <div class="fld"><label for="f_trx">Transaksi dalam 3 bulan terakhir</label><select id="f_trx"><option>Ada</option><option>Tidak ada</option></select></div>
+        <div class="fld"><label for="f_freq">Frekuensi transaksi rata-rata per bulan</label><input id="f_freq" type="number" min="0" step="0.1"></div>
+        <div class="fld"><label for="f_pangsa">Pangsa pasokan ke Indogrosir (%)</label><input id="f_pangsa" type="number" min="0" max="100" step="1"></div>
+
+        <div class="grp">Pengajuan dan usaha</div>
+        <div class="fld"><label for="f_plafon">Plafon permohonan (Rp)</label><input id="f_plafon" type="number" min="0" step="1000000"></div>
+        <div class="fld"><label for="f_belanja">Rata-rata pembelanjaan bulanan, 3 bulan terakhir (Rp)</label><input id="f_belanja" type="number" min="0" step="1000000"></div>
+        <div class="fld"><label for="f_usaha">Kepemilikan tempat usaha</label><select id="f_usaha"></select></div>
+        <div class="fld"><label for="f_jarak">Jarak usaha ke cabang Indogrosir (KM)</label><input id="f_jarak" type="number" min="0" step="0.1"></div>
+        <div class="fld"><label for="f_pesaing">Jumlah pesaing di sekitar toko</label><input id="f_pesaing" type="number" min="0" step="1"></div>
+        <div class="fld"><label for="f_jaminan">Jenis jaminan</label><select id="f_jaminan"></select></div>
+
+        <div class="grp">Hasil SLIK</div>
+        <div class="fld"><label for="f_slik">Kolektibilitas SLIK</label><select id="f_slik"><option value="">Belum dicek</option><option>Kol 1</option><option>Kol 2</option><option>Kol 3</option><option>Kol 4</option><option>Kol 5</option></select></div>
+      </div>
+    </div>
+    <div class="panel">
+      <h3>Dihitung otomatis dari data di atas</h3>
+      <div class="derived" id="derived"></div>
+    </div>
+    <div style="display:flex;justify-content:flex-end"><button class="btn pri" data-go="screening">Lanjut ke Screening</button></div>
+  </section>
+
+  <!-- 2 SCREENING -->
+  <section class="view" id="v-screening">
+    <div id="scr-banner"></div>
+    <div class="panel">
+      <h2>Credit Screening</h2>
+      <p class="lead">Seluruh kriteria wajib terpenuhi. Satu kriteria gagal, pengajuan tidak lolos dan tidak dilanjutkan ke scoring.</p>
+      <div class="tw"><table><thead><tr><th>No</th><th>Kriteria</th><th>Aturan</th><th>Nilai</th><th class="c">Status</th></tr></thead><tbody id="scr-rows"></tbody></table></div>
+    </div>
+    <div class="panel">
+      <h3>Validasi identitas lewat Beeza</h3>
+      <p class="lead">Biaya Rp4.000 per cek. Jalankan setelah cek gratis, kelengkapan dokumen (7a), dan SLIK lolos. Foto pasangan hanya diminta ke Akuisisi &amp; Distribusi bila hasil Invalid, lalu dicek manual di web Beeza.</p>
+      <div class="fld" style="max-width:420px"><label for="f_beeza">Hasil Beeza</label>
+        <select id="f_beeza">
+          <option value="">Belum dicek</option>
+          <option value="valid">Valid</option>
+          <option value="menunggu">Invalid, menunggu foto pasangan</option>
+          <option value="manual">Valid setelah cek manual di web Beeza</option>
+          <option value="invalid">Invalid (final)</option>
+        </select></div>
+    </div>
+    <div class="two">
+      <div class="panel"><h3>7a. Kelengkapan dokumen</h3><p class="note" style="margin:0 0 8px">Cek apakah file ada. Berkas pasangan wajib hanya jika menikah.</p><div id="chk-a"></div></div>
+      <div class="panel"><h3>7b. Kesesuaian dokumen</h3><p class="note" style="margin:0 0 8px">Cek manual analis. NIK, tanggal lahir, dan foto sudah dicek Beeza.</p><div id="chk-b"></div></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;gap:8px"><button class="btn" data-go="input">Kembali</button><button class="btn pri" data-go="scoring">Lanjut ke Scoring</button></div>
+  </section>
+
+  <!-- 3 SCORING -->
+  <section class="view" id="v-scoring">
+    <div id="sc-banner"></div>
+    <div class="panel">
+      <h2>Credit Scoring 5C</h2>
+      <p class="lead">Isi atau ubah nilai tiap parameter. Sistem memilih kriteria dan poinnya, lalu dinormalisasi per kategori ke 0 sampai 100 dan dikali bobot.</p>
+      <div class="tw"><table><thead><tr><th>Kategori</th><th>Parameter</th><th>Input</th><th>Kriteria terpilih</th><th class="num">Poin</th><th class="num">Maks</th></tr></thead><tbody id="sc-rows"></tbody></table></div>
+      <p class="note" style="margin-top:10px">Ubah nilai di kolom input untuk mencoba skenario lain. Frekuensi transaksi dipakai di Character dan Capacity, jadi mengubah satu mengubah keduanya.</p>
+    </div>
+    <div class="panel">
+      <h3>Ringkasan per kategori</h3>
+      <div class="tw"><table><thead><tr><th>Kategori</th><th class="num">Poin</th><th class="num">Maks</th><th>Skor 0-100</th><th class="num">Bobot</th><th class="num">Tertimbang</th></tr></thead><tbody id="cat-rows"></tbody></table></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;gap:8px"><button class="btn" data-go="screening">Kembali</button><button class="btn pri" data-go="hasil">Lanjut ke Hasil</button></div>
+  </section>
+
+  <!-- 4 HASIL -->
+  <section class="view" id="v-hasil">
+    <div id="hs-banner"></div>
+    <div class="panel" id="hs-main"></div>
+    <div class="two">
+      <div class="panel"><h3>Catatan untuk analis</h3><ul class="flags" id="hs-flags"></ul></div>
+      <div class="panel"><h3>Keputusan analis</h3>
+        <p class="note" style="margin:0 0 10px">Skor membantu menjaga konsistensi. Keputusan akhir tetap ada di analis.</p>
+        <div class="fld"><label for="f_keputusan">Keputusan</label><select id="f_keputusan"><option value="">Pilih keputusan</option><option>Setuju</option><option>Setuju dengan syarat</option><option>Eskalasi ke atasan</option><option>Tolak</option></select></div>
+        <div class="fld" style="margin-top:10px"><label for="f_alasan">Alasan dan catatan</label><textarea id="f_alasan" rows="3"></textarea><span class="hint" id="alasan-hint"></span></div>
+        <div style="margin-top:12px"><button class="btn pri" id="btn-simpan">Simpan keputusan</button></div>
+        <div class="toast" id="toast" role="status"></div>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:flex-start"><button class="btn" data-go="scoring">Kembali</button></div>
+  </section>
+
+  <!-- 5 RINGKASAN -->
+  <section class="view" id="v-ringkasan"><div id="rk"></div></section>
+
+  <!-- PARAMETER -->
+  <section class="view" id="v-parameter">
+    <div class="panel">
+      <h2>Parameter scoring</h2>
+      <p class="lead">Contoh halaman pengaturan. Poin, bobot, dan batas skor bisa diubah di sini, dan hasil di semua langkah langsung ikut berubah. Di versi sebenarnya perubahan perlu persetujuan dan tercatat.</p>
+      <h3>Bobot kategori</h3>
+      <div class="tw edit"><table><thead><tr><th>Kategori</th><th class="num">Bobot (%)</th></tr></thead><tbody id="p-w"></tbody></table></div>
+      <p class="note" id="p-wsum" style="margin-top:8px"></p>
+    </div>
+    <div class="panel"><h3>Poin per kriteria</h3><div class="tw edit"><table><thead><tr><th>Parameter</th><th>Kriteria</th><th class="num">Poin</th></tr></thead><tbody id="p-pts"></tbody></table></div></div>
+    <div class="panel"><h3>Decision Matrix</h3><div class="tw edit"><table><thead><tr><th>Kategori risiko</th><th class="num">Skor dari</th><th>Rekomendasi</th></tr></thead><tbody id="p-dm"></tbody></table></div>
+      <p class="note" style="margin-top:8px">Kategori ditentukan dari batas bawah skor, jadi skor desimal seperti 89,5 tetap masuk satu kategori.</p></div>
+    <button class="btn" id="btn-reset-p">Kembalikan ke nilai awal</button>
+  </section>
+
+  </main>
+</div>
+<div class="foot">Prototipe untuk diskusi. Nama, NIK, dan angka pada contoh adalah data fiktif. Tidak ada data yang dikirim atau disimpan.</div>
+
+<script>
+"use strict";
+/* ---------- Konfigurasi (sumber: Excel Credit Scoring PBM) ---------- */
+const DEF = {
+  weights:{Character:30,Capacity:25,Capital:20,Collateral:5,Condition:20},
+  tables:{
+    status:[["Menikah",5],["Belum Menikah",3]],
+    slik:[["Kol 1",25],["Kol 2",0]],
+    freq:[["> 10x (Rutin/Stabil)",10],["7x - 10x (Cukup Rutin)",7],["≥ 3x sampai < 7x",5],["< 3x (Tidak Rutin/Sporadis)",3]],
+    rasio:[["Plafon ÷ Pembelanjaan ≤ 1x",15],["Plafon ÷ Pembelanjaan 1,01 - 1,2x",10],["Plafon ÷ Pembelanjaan > 1,2x (review manual analis)",5]],
+    usaha:[["Milik Sendiri",15],["Sewa ≥ 3 tahun",7],["Sewa < 3 tahun",5]],
+    pangsa:[["> 70%",5],["40% - 70%",3],["< 40%",1]],
+    jaminan:[["Persediaan Barang (Daftar Persediaan)",15],["Emas/Logam Mulia",15],["Cash Collateral (Deposito Berjangka)",15],["Kendaraan",15],["Rumah/Tanah/Ruko/Kios",15],["Tanpa Agunan",0]],
+    jarak:[["< 5 KM",15],["5 - 10 KM",7],["> 10 KM",5]],
+    pesaing:[["0 - 2",5],["3 - 5",3],["> 5",1]]
+  },
+  dm:[["Risiko Sangat Rendah",90,"Auto Approve","#1c7448"],["Risiko Rendah",80,"Approve","#0b6b74"],["Risiko Sedang",70,"Manual Review","#b57a00"],["Risiko Tinggi",55,"Escalated Review","#c4571f"],["Risiko Sangat Tinggi",0,"Auto Reject","#a32f2d"]]
+};
+const P = JSON.parse(JSON.stringify(DEF));
+const CATS = ["Character","Capacity","Capital","Collateral","Condition"];
+const TBL_NAME = {status:"Status Perkawinan",slik:"Kredit Historis - SLIK Kolektibilitas",freq:"Frekuensi Transaksi (rata-rata/bulan)",rasio:"Rasio Plafon terhadap Pembelanjaan Bulanan",usaha:"Kepemilikan Tempat Usaha",pangsa:"Pangsa Pasokan ke Indogrosir",jaminan:"Jenis Jaminan/Agunan",jarak:"Lokasi Usaha dari Cabang Indogrosir",pesaing:"Lingkungan Toko (Jumlah Pesaing)"};
+
+const S = {
+  nama:"",nik:"",tmp:"",tgllahir:"",status:"Menikah",ajuan:"",merah:"Aktif",join:"",trx:"Ada",freq:null,pangsa:null,
+  plafon:null,belanja:null,usaha:"Milik Sendiri",jarak:null,pesaing:null,jaminan:"Persediaan Barang (Daftar Persediaan)",slik:"",
+  beeza:"",chk:{},keputusan:"",alasan:""
+};
+
+const A_ITEMS=[
+ ["a1","Foto KTP calon debitur",false],["a2","Foto diri calon debitur",false],["a3","Foto diri dan KTP",false],["a4","Foto Kartu Keluarga",false],
+ ["a5","Formulir Permohonan Pembiayaan (form fisik)",false],["a6","Foto KTP pasangan",true],["a7","Surat Persetujuan Pasangan",true]];
+const B_ITEMS=[
+ ["b1","NIK pada foto KTP sama dengan NIK yang diinput",false],["b2","KK memuat nama calon debitur dan sesuai status perkawinan",false],
+ ["b3","KK memuat nama pasangan sesuai data pasangan",true],["b4","Form fisik sudah ditandatangani dan nilai pembiayaan sama dengan yang diinput",false],
+ ["b5","Surat Persetujuan Pasangan sudah ditandatangani dan identitas sesuai KTP pasangan",true]];
+
+/* ---------- Helper ---------- */
+const $=id=>document.getElementById(id);
+const nf=(n,d=2)=>Number(n).toLocaleString("id-ID",{maximumFractionDigits:d});
+const rp=n=>"Rp "+Number(n).toLocaleString("id-ID",{maximumFractionDigits:0});
+const isNum=v=>v!==null&&v!==""&&!Number.isNaN(v);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function yearsBetween(from,to){
+  if(!from||!to) return null;
+  const a=new Date(from+"T00:00:00"),b=new Date(to+"T00:00:00");
+  if(isNaN(a)||isNaN(b)) return null;
+  let y=b.getFullYear()-a.getFullYear();
+  const m=b.getMonth()-a.getMonth();
+  if(m<0||(m===0&&b.getDate()<a.getDate())) y--;
+  return y;
+}
+function monthsBetween(from,to){
+  if(!from||!to) return null;
+  const a=new Date(from+"T00:00:00"),b=new Date(to+"T00:00:00");
+  let m=(b.getFullYear()-a.getFullYear())*12+(b.getMonth()-a.getMonth());
+  if(b.getDate()<a.getDate()) m--;
+  return m;
+}
+const maxOf=t=>Math.max(...P.tables[t].map(r=>r[1]));
+
+/* ---------- Baris scoring ---------- */
+const ROWS=[
+ {id:"status",cat:"Character",table:"status",val:()=>S.status,pick:()=>S.status==="Menikah"?0:1},
+ {id:"slik",cat:"Character",table:"slik",val:()=>S.slik||"Belum dicek",pick:()=>S.slik==="Kol 1"?0:S.slik==="Kol 2"?1:null,na:()=>S.slik&&S.slik!=="Kol 1"&&S.slik!=="Kol 2"?"Tidak berlaku, Kol di atas 2 ditolak di Screening":null},
+ {id:"freqC",cat:"Character",table:"freq",val:()=>isNum(S.freq)?nf(S.freq,1)+"x per bulan":"Belum diisi",pick:pickFreq},
+ {id:"freqP",cat:"Capacity",table:"freq",val:()=>isNum(S.freq)?nf(S.freq,1)+"x per bulan":"Belum diisi",pick:pickFreq},
+ {id:"rasio",cat:"Capacity",table:"rasio",val:()=>{const r=ratio();return r==null?"Belum diisi":"Rasio "+nf(r,2)+"x"},pick:()=>{const r=ratio();return r==null?null:r<=1?0:r<=1.2?1:2}},
+ {id:"usaha",cat:"Capital",table:"usaha",val:()=>S.usaha,pick:()=>P.tables.usaha.findIndex(r=>r[0]===S.usaha)},
+ {id:"pangsa",cat:"Capital",table:"pangsa",val:()=>isNum(S.pangsa)?nf(S.pangsa,1)+"%":"Belum diisi",pick:()=>!isNum(S.pangsa)?null:S.pangsa>70?0:S.pangsa>=40?1:2},
+ {id:"jaminan",cat:"Collateral",table:"jaminan",val:()=>S.jaminan,pick:()=>P.tables.jaminan.findIndex(r=>r[0]===S.jaminan)},
+ {id:"jarak",cat:"Condition",table:"jarak",val:()=>isNum(S.jarak)?nf(S.jarak,1)+" KM":"Belum diisi",pick:()=>!isNum(S.jarak)?null:S.jarak<5?0:S.jarak<=10?1:2},
+ {id:"pesaing",cat:"Condition",table:"pesaing",val:()=>isNum(S.pesaing)?nf(S.pesaing,0)+" pesaing":"Belum diisi",pick:()=>!isNum(S.pesaing)?null:S.pesaing<=2?0:S.pesaing<=5?1:2}
+];
+function pickFreq(){const f=S.freq;return !isNum(f)?null:f>10?0:f>=7?1:f>=3?2:3}
+function ratio(){return isNum(S.plafon)&&isNum(S.belanja)&&S.belanja>0?S.plafon/S.belanja:null}
+
+function calcScore(){
+  const rows=ROWS.map(r=>{
+    const i=r.pick(); const opt=i==null||i<0?null:P.tables[r.table][i];
+    return {...r,idx:i,label:opt?opt[0]:null,pts:opt?opt[1]:0,max:maxOf(r.table),valText:r.val(),naText:r.na?r.na():null,missing:opt==null&&!(r.na&&r.na())};
+  });
+  const cats=CATS.map(c=>{
+    const rs=rows.filter(r=>r.cat===c);
+    const raw=rs.reduce((a,r)=>a+r.pts,0), max=rs.reduce((a,r)=>a+r.max,0);
+    const skor=max?raw/max*100:0, w=P.weights[c];
+    return {name:c,raw,max,skor,w,tert:skor*w/100};
+  });
+  const total=cats.reduce((a,c)=>a+c.tert,0);
+  const missing=rows.filter(r=>r.missing).length;
+  const dm=[...P.dm].sort((a,b)=>b[1]-a[1]);
+  const hit=dm.find(d=>d[1]<=total)||dm[dm.length-1];
+  return {rows,cats,total,missing,risk:hit};
+}
+
+/* ---------- Screening ---------- */
+function calcScreening(){
+  const age=yearsBetween(S.tgllahir,S.ajuan);
+  const lama=yearsBetween(S.join,S.ajuan), bln=monthsBetween(S.join,S.ajuan);
+  const menikah=S.status==="Menikah";
+  const out=[];
+  out.push({no:"1",name:"Usia",rule:"Minimal 21 tahun, tanpa batas maksimal",st:age==null?"Belum":age>=21?"Ya":"Tidak",val:age==null?"Belum diisi":age+" tahun",basis:"KUHPerdata Pasal 330"});
+  out.push({no:"2",name:"Status hubungan supplier",rule:"Wajib aktif (Member Merah masih berlaku)",st:S.merah==="Aktif"?"Ya":"Tidak",val:S.merah,basis:"Kriteria awal PPT",manual:true});
+  out.push({no:"3",name:"Keaktifan transaksi",rule:"Ada transaksi dalam 3 bulan terakhir",st:S.trx==="Ada"?"Ya":"Tidak",val:S.trx,basis:"Kriteria awal PPT"});
+  let bz={"":["Belum","Belum dicek"],valid:["Ya","Valid"],menunggu:["Belum","Invalid, menunggu foto pasangan"],manual:["Ya","Valid setelah cek manual"],invalid:["Tidak","Invalid (final)"]}[S.beeza];
+  out.push({no:"4",name:"Validasi identitas (Beeza)",rule:"Hasil Beeza valid. Rp4.000 per cek",st:bz[0],val:bz[1],basis:"Kebijakan internal, pengganti cek Dukcapil"});
+  out.push({no:"5",name:"Lama berhubungan dengan Indogrosir",rule:"Minimal 1 tahun",st:lama==null?"Belum":lama>=1?"Ya":"Tidak",val:lama==null?"Belum diisi":(lama>=1?lama+" tahun":bln+" bulan"),basis:"Kriteria awal PPT, diubah menjadi 1 tahun"});
+  out.push({no:"6",name:"SLIK kolektibilitas",rule:"Maksimal Kol 2",st:!S.slik?"Belum":(S.slik==="Kol 1"||S.slik==="Kol 2")?"Ya":"Tidak",val:S.slik||"Belum dicek",basis:"Kategori Kol 1 sampai 5 menurut OJK"});
+  const agg=(items)=>{
+    const vals=items.map(([id,,sp])=>sp&&!menikah?"N/A":(S.chk[id]||""));
+    if(vals.some(v=>v==="")) return "Belum";
+    if(vals.some(v=>v==="Tidak")) return "Tidak";
+    return "Ya";
+  };
+  const a=agg(A_ITEMS), b=agg(B_ITEMS);
+  const cnt=(items)=>{const v=items.map(([id,,sp])=>sp&&!menikah?"N/A":(S.chk[id]||""));return v.filter(x=>x==="Ya"||x==="N/A").length+" dari "+v.length+" terpenuhi"};
+  out.push({no:"7a",name:"Kelengkapan dokumen",rule:"Seluruh berkas wajib tersedia",st:a,val:cnt(A_ITEMS),basis:"Kebijakan internal"});
+  out.push({no:"7b",name:"Kesesuaian dokumen",rule:"Isi berkas sesuai data yang diinput",st:b,val:cnt(B_ITEMS),basis:"Usulan checklist manual"});
+  const gagal=out.filter(o=>o.st==="Tidak"), belum=out.filter(o=>o.st==="Belum");
+  const result=gagal.length?"TIDAK LOLOS SCREENING":out.every(o=>o.st==="Ya")?"LOLOS SCREENING":"BELUM LENGKAP";
+  return {items:out,result,gagal,belum,age,lama};
+}
+
+/* ---------- Render ---------- */
+const VIEWS=["input","screening","scoring","hasil","ringkasan","parameter"];
+const STEP_TITLES={input:["Langkah 1","Data pengajuan"],screening:["Langkah 2","Credit Screening"],scoring:["Langkah 3","Credit Scoring 5C"],hasil:["Langkah 4","Hasil dan keputusan"],ringkasan:["Langkah 5","Ringkasan keputusan"],parameter:["Pengaturan","Parameter scoring"]};
+let current="input";
+
+function pill(st){const c=st==="Ya"?"p-ya":st==="Tidak"?"p-tidak":st==="N/A"?"p-na":"p-belum";return `<span class="pill ${c}">${st==="Belum"?"Belum diisi":st}</span>`}
+
+function syncForm(){
+  Object.entries(FIELDS).forEach(([id,[k]])=>{const e=$(id);if(!e||document.activeElement===e)return;const v=S[k];const nv=(v===null||v===undefined)?"":String(v);if(e.value!==nv)e.value=nv});
+}
+function update(){
+  syncForm();
+  const scr=calcScreening(), sc=calcScore();
+  /* derived */
+  const r=ratio();
+  const d=[
+    ["Usia saat pengajuan",scr.age==null?"-":scr.age+" tahun",scr.age==null?"":(scr.age>=21?"Memenuhi minimal 21 tahun":"Di bawah 21 tahun")],
+    ["Lama jadi member",scr.lama==null?"-":scr.lama+" tahun","Minimal 1 tahun"],
+    ["Rasio plafon ÷ pembelanjaan",r==null?"-":nf(r,2)+"x",r==null?"":r>1.2?"Di atas 1,2x, review manual":r>1?"Tier 1,01 - 1,2x":"Tier ≤ 1x"],
+    ["Frekuensi masuk tier",sc.rows[2].label||"-",""],
+    ["Pangsa pasokan masuk tier",sc.rows[6].label||"-",""],
+    ["Jarak masuk tier",sc.rows[8].label||"-",""]
+  ];
+  $("derived").innerHTML=d.map(x=>`<div class="chip"><div class="k">${x[0]}</div><div class="v">${esc(x[1])}</div><div class="w">${esc(x[2])}</div></div>`).join("");
+
+  /* screening */
+  $("scr-rows").innerHTML=scr.items.map(o=>`<tr><td>${o.no}</td><td><b>${o.name}</b>${o.manual?'<span class="mini">input manual V1</span>':''}<span class="sub">Dasar: ${esc(o.basis)}</span></td><td>${esc(o.rule)}</td><td>${esc(o.val)}</td><td class="c">${pill(o.st)}</td></tr>`).join("");
+  const cls=scr.result==="LOLOS SCREENING"?"ok":scr.result==="BELUM LENGKAP"?"wait":"no";
+  let why="";
+  if(scr.gagal.length) why="Tidak terpenuhi: "+scr.gagal.map(g=>g.no+" "+g.name).join(", ")+". Pengajuan tidak dilanjutkan ke scoring.";
+  else if(scr.belum.length) why="Masih perlu diisi: "+scr.belum.map(g=>g.no+" "+g.name).join(", ")+".";
+  else why="Seluruh 8 kriteria terpenuhi. Lanjut ke scoring.";
+  const bn=`<div class="banner ${cls}"><b>${scr.result}</b><span class="why">${esc(why)}</span></div>`;
+  $("scr-banner").innerHTML=bn;
+
+  /* checklist */
+  const menikah=S.status==="Menikah";
+  const mk=(items,box)=>{
+    box.querySelectorAll("[data-row]").forEach(row=>{
+      const id=row.dataset.row, sp=row.dataset.sp==="1"; const dis=sp&&!menikah;
+      const v=dis?"N/A":(S.chk[id]||"");
+      row.querySelectorAll("button").forEach(b=>{b.disabled=dis&&b.dataset.v!=="N/A"||(!sp&&b.dataset.v==="N/A"); b.setAttribute("aria-pressed",String(b.dataset.v===v))});
+    });
+  };
+  mk(A_ITEMS,$("chk-a")); mk(B_ITEMS,$("chk-b"));
+  $("f_beeza").value=S.beeza;
+
+  /* scoring */
+  sc.rows.forEach(x=>{
+    const tr=document.querySelector(`#sc-rows [data-r="${x.id}"]`); if(!tr) return;
+    const k=x.label?esc(x.label):(x.naText?`<span class="note">${esc(x.naText)}</span>`:'<span class="pill p-belum">Belum diisi</span>');
+    const rev=x.id==="rasio"&&x.idx===2?' <span class="pill p-belum">review manual</span>':'';
+    tr.querySelector(".k").innerHTML=k+rev;
+    tr.querySelector(".p").textContent=x.pts;
+    tr.querySelector(".m").textContent=x.max;
+  });
+  const rt=$("sc_rasio_txt"); if(rt) rt.textContent=r==null?"Rasio belum bisa dihitung":"Rasio "+nf(r,2)+"x";
+  $("cat-rows").innerHTML=sc.cats.map(c=>`<tr><td><b>${c.name}</b></td><td class="num">${c.raw}</td><td class="num">${c.max}</td><td><div style="display:flex;gap:10px;align-items:center"><div class="bar" style="flex:1"><i style="width:${c.skor}%"></i></div><span style="font-family:var(--mono);min-width:44px;text-align:right">${nf(c.skor,1)}</span></div></td><td class="num">${c.w}%</td><td class="num">${nf(c.tert,2)}</td></tr>`).join("")+`<tr><td colspan="5"><b>Total skor</b></td><td class="num"><b>${nf(sc.total,2)}</b></td></tr>`;
+  const preview=scr.result!=="LOLOS SCREENING";
+  const note=(sc.missing?`${sc.missing} parameter belum terisi, dihitung 0 poin. `:"")+(preview?"Pratinjau saja, belum berlaku karena Screening belum lolos.":"");
+  $("sc-banner").innerHTML=note?`<div class="banner wait"><b>${preview?"Pratinjau":"Data belum lengkap"}</b><span class="why">${esc(note)}</span></div>`:"";
+
+  /* hasil */
+  const risk=sc.risk;
+  const sorted=[...P.dm].sort((a,b)=>b[1]-a[1]);
+  const scale=sorted.map((d,i)=>{const hi=i===0?100:sorted[i-1][1];const w=Math.max(hi-d[1],0.0001);return `<div class="${d[0]===risk[0]?"cur":""}" style="flex:${w};background:${d[3]}" title="${esc(d[0])}">${d[1]}</div>`}).join("");
+  const ordered=[...sorted].reverse();
+  const scaleHtml=ordered.map((d,i)=>{const hi=i===ordered.length-1?100:ordered[i+1][1];return `<div class="${d[0]===risk[0]?"cur":""}" style="flex:${Math.max(hi-d[1],0.0001)};background:${d[3]}" title="${esc(d[0])}">${d[1]}+</div>`}).join("");
+  const hcls=preview?"no":(risk[2]==="Auto Approve"||risk[2]==="Approve")?"ok":(risk[2]==="Auto Reject")?"no":"wait";
+  $("hs-banner").innerHTML=preview?`<div class="banner ${scr.result==="BELUM LENGKAP"?"wait":"no"}"><b>${scr.result}</b><span class="why">Hasil di bawah hanya pratinjau. Pengajuan yang tidak lolos Screening tidak dinilai.</span></div>`:"";
+  $("hs-main").innerHTML=`<div class="total"><div><div class="note">Total skor</div><div class="big">${nf(sc.total,2)}</div></div>
+    <div><div class="note">Kategori risiko</div><div class="risk" style="color:${risk[3]}">${esc(risk[0])}</div><div class="note">Rekomendasi sistem: <b>${esc(risk[2])}</b></div></div>
+    <div style="flex:1;min-width:240px"><div class="note">${esc(S.nama||"Calon debitur")}, plafon ${isNum(S.plafon)?rp(S.plafon):"-"}</div><div class="scalewrap"><span class="mark" style="left:${Math.min(Math.max(sc.total,0),100)}%"></span><div class="scale">${scaleHtml}</div></div></div></div>`;
+  const fl=[];
+  if(scr.result!=="LOLOS SCREENING") fl.push(["b","Screening: "+scr.result+". "+why]);
+  if(sc.rows.find(x=>x.id==="rasio").idx===2) fl.push(["w","Rasio plafon di atas 1,2x pembelanjaan bulanan. Review manual analis diperlukan."]);
+  if(S.slik==="Kol 2") fl.push(["w","SLIK Kol 2. Lolos Screening, tetapi poin SLIK 0. Perhatikan alasan tunggakannya."]);
+  if(S.jaminan==="Tanpa Agunan") fl.push(["w","Tanpa agunan. Poin Collateral 0."]);
+  if(sc.missing) fl.push(["w",sc.missing+" parameter scoring belum terisi."]);
+  if(risk[2]==="Manual Review"||risk[2]==="Escalated Review") fl.push(["w",risk[2]+": perlu penilaian analis sebelum keputusan."]);
+  if(!fl.length) fl.push(["g","Tidak ada catatan khusus."]);
+  $("hs-flags").innerHTML=fl.map(f=>`<li class="${f[0]}">${esc(f[1])}</li>`).join("");
+  const expect={"Auto Approve":"Setuju","Approve":"Setuju","Escalated Review":"Eskalasi ke atasan","Auto Reject":"Tolak"}[risk[2]];
+  const mismatch=S.keputusan&&expect&&!(S.keputusan===expect||(expect==="Setuju"&&S.keputusan==="Setuju dengan syarat"));
+  const needAlasan=mismatch||(!!S.keputusan&&preview&&S.keputusan!=="Tolak");
+  $("alasan-hint").textContent=mismatch?"Keputusan berbeda dari rekomendasi sistem ("+risk[2]+"). Alasan wajib diisi.":(S.keputusan&&preview&&S.keputusan!=="Tolak")?"Screening belum lolos. Alasan wajib diisi.":"";
+  $("btn-simpan").dataset.need=needAlasan?"1":"0";
+
+  /* nav status */
+  const setS=(k,t)=>{const e=document.querySelector(`[data-step="${k}"] .s`);if(e)e.textContent=t};
+  const filled=[S.nama,S.tgllahir,S.join,S.ajuan,S.plafon,S.belanja,S.freq,S.pangsa,S.jarak,S.pesaing].filter(v=>isNum(v)&&v!=="").length;
+  setS("input",filled+" dari 10 isian utama");
+  setS("screening",scr.result==="LOLOS SCREENING"?"Lolos":scr.result==="TIDAK LOLOS SCREENING"?"Tidak lolos":"Belum lengkap");
+  setS("scoring",nf(sc.total,1)+" dari 100");
+  setS("hasil",risk[0]);
+  setS("ringkasan",S.saved?S.saved.keputusan:"Belum disimpan");
+  setS("parameter","Bobot, poin, batas skor");
+}
+
+/* ---------- Nav ---------- */
+function buildNav(){
+  $("steps").innerHTML=VIEWS.map((v,i)=>`${v==="parameter"?'<div class="sep"></div>':''}<button class="step" data-step="${v}"><span class="n">${STEP_TITLES[v][0]}</span><span class="t">${STEP_TITLES[v][1]}</span><span class="s"></span></button>`).join("");
+}
+function show(v){
+  if(!VIEWS.includes(v)) v="input";
+  current=v;
+  VIEWS.forEach(x=>$("v-"+x).classList.toggle("on",x===v));
+  document.querySelectorAll(".step").forEach(b=>{if(b.dataset.step===v)b.setAttribute("aria-current","page");else b.removeAttribute("aria-current")});
+  try{ if(location.hash!=="#"+v) history.replaceState(null,"","#"+v);}catch(e){}
+  if(v==="ringkasan") renderSummary();
+  window.scrollTo(0,0);
+}
+
+/* ---------- Form ---------- */
+const FIELDS={f_nama:["nama","s"],f_nik:["nik","s"],f_tmp:["tmp","s"],f_tgllahir:["tgllahir","s"],f_status:["status","s"],f_ajuan:["ajuan","s"],f_merah:["merah","s"],f_join:["join","s"],f_trx:["trx","s"],
+ f_freq:["freq","n"],f_pangsa:["pangsa","n"],f_plafon:["plafon","n"],f_belanja:["belanja","n"],f_usaha:["usaha","s"],f_jarak:["jarak","n"],f_pesaing:["pesaing","n"],f_jaminan:["jaminan","s"],f_slik:["slik","s"],
+ sc_status:["status","s"],sc_slik:["slik","s"],sc_freqC:["freq","n"],sc_freqP:["freq","n"],sc_plafon:["plafon","n"],sc_belanja:["belanja","n"],sc_usaha:["usaha","s"],sc_pangsa:["pangsa","n"],sc_jaminan:["jaminan","s"],sc_jarak:["jarak","n"],sc_pesaing:["pesaing","n"],
+ f_beeza:["beeza","s"],f_keputusan:["keputusan","s"],f_alasan:["alasan","s"]};
+function fillSelects(){
+  const u=P.tables.usaha.map(r=>`<option>${esc(r[0])}</option>`).join(""), j=P.tables.jaminan.map(r=>`<option>${esc(r[0])}</option>`).join("");
+  ["f_usaha","sc_usaha"].forEach(i=>{$(i).innerHTML=u}); ["f_jaminan","sc_jaminan"].forEach(i=>{$(i).innerHTML=j});
+}
+function buildScoring(){
+  const num=(id,label,step,unit)=>`<input class="ctl" id="${id}" type="number" min="0" step="${step}" aria-label="${label}"${unit?` placeholder="${unit}"`:""}>`;
+  const ctl={
+    status:'<select class="ctl" id="sc_status" aria-label="Status perkawinan"><option>Menikah</option><option>Belum Menikah</option></select>',
+    slik:'<select class="ctl" id="sc_slik" aria-label="Kolektibilitas SLIK"><option value="">Belum dicek</option><option>Kol 1</option><option>Kol 2</option><option>Kol 3</option><option>Kol 4</option><option>Kol 5</option></select>',
+    freqC:num("sc_freqC","Frekuensi transaksi per bulan",0.1,"kali per bulan"),
+    freqP:num("sc_freqP","Frekuensi transaksi per bulan",0.1,"kali per bulan"),
+    rasio:`<div class="ctl2"><div><small>Plafon permohonan (Rp)</small>${num("sc_plafon","Plafon permohonan",1000000)}</div><div><small>Pembelanjaan bulanan, rata-rata 3 bulan (Rp)</small>${num("sc_belanja","Pembelanjaan bulanan",1000000)}</div><span class="sub" id="sc_rasio_txt"></span></div>`,
+    usaha:'<select class="ctl" id="sc_usaha" aria-label="Kepemilikan tempat usaha"></select>',
+    pangsa:num("sc_pangsa","Pangsa pasokan persen",1,"persen"),
+    jaminan:'<select class="ctl" id="sc_jaminan" aria-label="Jenis jaminan"></select>',
+    jarak:num("sc_jarak","Jarak usaha ke cabang",0.1,"KM"),
+    pesaing:num("sc_pesaing","Jumlah pesaing",1,"jumlah pesaing")
+  };
+  $("sc-rows").innerHTML=ROWS.map(r=>`<tr data-r="${r.id}"><td>${r.cat}</td><td>${TBL_NAME[r.table]}${r.id==="freqC"||r.id==="freqP"?'<span class="mini">satu isian untuk dua kategori</span>':''}</td><td>${ctl[r.id]}</td><td class="k"></td><td class="num p"></td><td class="num m"></td></tr>`).join("");
+}
+function toForm(){Object.entries(FIELDS).forEach(([id,[k,t]])=>{const e=$(id);if(!e)return;const v=S[k];e.value=(v===null||v===undefined)?"":v})}
+function buildChecklists(){
+  const mk=(items)=>items.map(([id,label,sp])=>`<div data-row="${id}" data-sp="${sp?1:0}" style="display:flex;justify-content:space-between;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);flex-wrap:wrap"><span style="flex:1;min-width:180px">${esc(label)}${sp?'<span class="mini">hanya jika menikah</span>':''}</span><span class="seg"><button type="button" class="ya" data-v="Ya">Ya</button><button type="button" class="tidak" data-v="Tidak">Tidak</button><button type="button" class="na" data-v="N/A">N/A</button></span></div>`).join("");
+  $("chk-a").innerHTML=mk(A_ITEMS); $("chk-b").innerHTML=mk(B_ITEMS);
+}
+
+/* ---------- Contoh ---------- */
+const TODAY=(()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")})();
+const allYa=(menikah)=>{const c={};[...A_ITEMS,...B_ITEMS].forEach(([id,,sp])=>{c[id]=(sp&&!menikah)?"N/A":"Ya"});return c};
+const PRESETS=[
+ {label:"A. Risiko Rendah",d:{nama:"Contoh Debitur A",nik:"3201000000000001",tmp:"Bogor",tgllahir:"1988-04-12",status:"Menikah",merah:"Aktif",join:"2019-03-05",trx:"Ada",freq:8,pangsa:55,plafon:50000000,belanja:52000000,usaha:"Milik Sendiri",jarak:7,pesaing:6,jaminan:"Persediaan Barang (Daftar Persediaan)",slik:"Kol 1",beeza:"valid",chk:allYa(true)}},
+ {label:"B. Tidak lolos Screening",d:{nama:"Contoh Debitur B",nik:"3201000000000002",tmp:"Depok",tgllahir:"1995-09-30",status:"Belum Menikah",merah:"Aktif",join:"2026-02-10",trx:"Ada",freq:5,pangsa:35,plafon:30000000,belanja:28000000,usaha:"Sewa < 3 tahun",jarak:12,pesaing:3,jaminan:"Kendaraan",slik:"Kol 3",beeza:"valid",chk:{...allYa(false),a4:"Tidak"}}},
+ {label:"C. Perlu eskalasi",d:{nama:"Contoh Debitur C",nik:"3201000000000003",tmp:"Bekasi",tgllahir:"1982-11-02",status:"Menikah",merah:"Aktif",join:"2021-07-20",trx:"Ada",freq:9,pangsa:45,plafon:65000000,belanja:50000000,usaha:"Sewa ≥ 3 tahun",jarak:6,pesaing:4,jaminan:"Persediaan Barang (Daftar Persediaan)",slik:"Kol 1",beeza:"manual",chk:allYa(true)}}
+];
+function applyPreset(p){
+  Object.assign(S,{nama:"",nik:"",tmp:"",tgllahir:"",status:"Menikah",merah:"Aktif",join:"",trx:"Ada",freq:null,pangsa:null,plafon:null,belanja:null,usaha:"Milik Sendiri",jarak:null,pesaing:null,jaminan:"Persediaan Barang (Daftar Persediaan)",slik:"",beeza:"",chk:{},keputusan:"",alasan:"",ajuan:TODAY,saved:null},p?p.d:{});
+  toForm(); $("toast").classList.remove("on"); update();
+}
+
+/* ---------- Parameter ---------- */
+function buildParam(){
+  $("p-w").innerHTML=CATS.map(c=>`<tr><td>${c}</td><td class="num"><input type="number" min="0" max="100" step="1" data-w="${c}" value="${P.weights[c]}" aria-label="Bobot ${c}"></td></tr>`).join("");
+  let html="";
+  Object.keys(P.tables).forEach(t=>{P.tables[t].forEach((r,i)=>{html+=`<tr>${i===0?`<td rowspan="${P.tables[t].length}"><b>${TBL_NAME[t]}</b></td>`:""}<td>${esc(r[0])}</td><td class="num"><input type="number" min="0" step="1" data-t="${t}" data-i="${i}" value="${r[1]}" aria-label="Poin ${esc(r[0])}"></td></tr>`})});
+  $("p-pts").innerHTML=html;
+  $("p-dm").innerHTML=P.dm.map((d,i)=>`<tr><td><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${d[3]};margin-right:8px"></span>${esc(d[0])}</td><td class="num"><input type="number" min="0" max="100" step="1" data-dm="${i}" value="${d[1]}" aria-label="Skor dari ${esc(d[0])}"></td><td><input type="text" data-dmr="${i}" value="${esc(d[2])}" aria-label="Rekomendasi ${esc(d[0])}"></td></tr>`).join("");
+  wsum();
+}
+function wsum(){const s=CATS.reduce((a,c)=>a+Number(P.weights[c]||0),0);const e=$("p-wsum");e.textContent="Total bobot "+s+"%"+(s===100?". Sesuai.":". Harus 100% agar skor total tetap 0 sampai 100.");e.style.color=s===100?"var(--good)":"var(--bad)"}
+
+/* ---------- Events ---------- */
+document.addEventListener("click",e=>{
+  const st=e.target.closest(".step"); if(st){show(st.dataset.step);return}
+  const go=e.target.closest("[data-go]"); if(go){show(go.dataset.go);return}
+  const pr=e.target.closest("[data-preset]"); if(pr){const v=pr.dataset.preset;applyPreset(v==="reset"?null:PRESETS[+v]);return}
+  if(e.target.closest("#btn-new")){applyPreset(null);show("input");return}
+  if(e.target.closest("#btn-copy")){const t=$("toast2");const txt=summaryText(S.saved);
+    const ok=()=>{t.textContent="Ringkasan disalin. Tempel ke email atau catatan.";t.classList.add("on")};
+    const fail=()=>{t.textContent="Jendela ini tidak mengizinkan salin otomatis. Pilih teks di halaman lalu salin manual.";t.classList.add("on")};
+    try{navigator.clipboard.writeText(txt).then(ok,fail)}catch(err){fail()} return}
+  const sg=e.target.closest(".seg button"); if(sg&&!sg.disabled){const row=sg.closest("[data-row]");S.chk[row.dataset.row]=sg.dataset.v;update();return}
+});
+document.addEventListener("input",e=>{
+  const id=e.target.id;
+  if(FIELDS[id]){const [k,t]=FIELDS[id];let v=e.target.value;if(t==="n")v=v===""?null:parseFloat(v);S[k]=v;update();return}
+  if(e.target.dataset.w){P.weights[e.target.dataset.w]=parseFloat(e.target.value)||0;wsum();update();return}
+  if(e.target.dataset.t){const v=parseFloat(e.target.value);P.tables[e.target.dataset.t][+e.target.dataset.i][1]=isNaN(v)?0:v;update();return}
+  if(e.target.dataset.dm!==undefined){const v=parseFloat(e.target.value);P.dm[+e.target.dataset.dm][1]=isNaN(v)?0:v;update();return}
+  if(e.target.dataset.dmr!==undefined){P.dm[+e.target.dataset.dmr][2]=e.target.value;update();return}
+});
+let SEQ=1;
+$("btn-simpan").addEventListener("click",()=>{
+  const t=$("toast");
+  if(!S.keputusan){t.textContent="Pilih keputusan terlebih dahulu.";t.classList.add("on");return}
+  if($("btn-simpan").dataset.need==="1"&&!S.alasan.trim()){t.textContent="Alasan wajib diisi karena keputusan berbeda dari rekomendasi sistem atau Screening belum lolos.";t.classList.add("on");return}
+  t.classList.remove("on");
+  const scr=calcScreening(), sc=calcScore();
+  const ref=S.saved?S.saved.ref:"PBM-"+TODAY.replace(/-/g,"")+"-"+String(SEQ++).padStart(3,"0");
+  S.saved={ref,time:new Date().toLocaleString("id-ID",{dateStyle:"long",timeStyle:"short"}),keputusan:S.keputusan,alasan:S.alasan.trim(),d:{...S,chk:{...S.chk}},scr,sc};
+  update(); show("ringkasan");
+});
+function maskNik(n){n=String(n||"");return n.length>=8?n.slice(0,6)+"*".repeat(n.length-8)+n.slice(-2):(n||"-")}
+function summaryText(v){
+  const d=v.d,L=[];
+  L.push("HASIL ANALISIS PEMBIAYAAN (CONTOH)","No. referensi: "+v.ref,"Disimpan: "+v.time,"");
+  L.push("Calon debitur: "+(d.nama||"-"),"NIK: "+maskNik(d.nik),"Status perkawinan: "+d.status,"Plafon: "+(isNum(d.plafon)?rp(d.plafon):"-")+", tenor 12 bulan","");
+  L.push("Screening: "+v.scr.result);v.scr.items.forEach(o=>L.push("  "+o.no+" "+o.name+": "+(o.st==="Belum"?"Belum diisi":o.st)+" ("+o.val+")"));
+  L.push("","Skor total: "+nf(v.sc.total,2)+" ("+v.sc.risk[0]+")","Rekomendasi sistem: "+v.sc.risk[2]);v.sc.cats.forEach(c=>L.push("  "+c.name+": "+nf(c.skor,1)+" x "+c.w+"% = "+nf(c.tert,2)));
+  L.push("","Keputusan analis: "+v.keputusan,"Alasan: "+(v.alasan||"-"));
+  return L.join("\n");
+}
+function renderSummary(){
+  const box=$("rk"), v=S.saved;
+  if(!v){box.innerHTML='<div class="panel"><h2>Ringkasan keputusan</h2><p class="lead">Belum ada keputusan yang disimpan. Selesaikan langkah 1 sampai 4, pilih keputusan di halaman Hasil, lalu klik Simpan keputusan.</p><button class="btn pri" data-go="hasil">Ke halaman Hasil</button></div>';return}
+  const d=v.d, risk=v.sc.risk;
+  const st=v.keputusan==="Setuju"?"ok":v.keputusan==="Tolak"?"no":"wait";
+  const stLabel={"Setuju":"Disetujui","Setuju dengan syarat":"Disetujui dengan syarat","Eskalasi ke atasan":"Dieskalasi ke atasan","Tolak":"Ditolak"}[v.keputusan];
+  const expect={"Auto Approve":"Setuju","Approve":"Setuju","Escalated Review":"Eskalasi ke atasan","Auto Reject":"Tolak"}[risk[2]];
+  const sama=!expect||v.keputusan===expect||(expect==="Setuju"&&v.keputusan==="Setuju dengan syarat");
+  const preview=v.scr.result!=="LOLOS SCREENING";
+  const consist=preview?"Pengajuan tidak lolos Screening, skor hanya pembanding.":(expect?(sama?"Sesuai rekomendasi sistem.":"Berbeda dari rekomendasi sistem. Alasan tercatat di bawah."):"Rekomendasi Manual Review, keputusan menjadi penilaian analis.");
+  box.innerHTML=`<div class="banner ok" style="background:var(--accent-soft);color:var(--accent);border-color:var(--accent)"><b>Keputusan tersimpan</b><span class="why">Ini contoh output setelah analis menyimpan keputusan. Di sistem sebenarnya, data ini masuk ke riwayat pengajuan.</span></div>
+  <div class="panel">
+    <div class="doc-head"><div><h2>Hasil Analisis Pembiayaan</h2><div class="note">No. referensi <b style="font-family:var(--mono)">${esc(v.ref)}</b></div><div class="note">Disimpan ${esc(v.time)}, oleh Analis Kredit (contoh)</div></div><div class="stamp ${st}">${stLabel}</div></div>
+    <div class="dsec" style="margin-top:0">Calon debitur</div>
+    <dl class="kv"><div><dt>Nama</dt><dd>${esc(d.nama||"-")}</dd></div><div><dt>NIK</dt><dd style="font-family:var(--mono)">${esc(maskNik(d.nik))}</dd></div><div><dt>Usia</dt><dd>${v.scr.age==null?"-":v.scr.age+" tahun"}</dd></div><div><dt>Status perkawinan</dt><dd>${esc(d.status)}</dd></div><div><dt>Plafon permohonan</dt><dd>${isNum(d.plafon)?rp(d.plafon):"-"}</dd></div><div><dt>Tenor</dt><dd>12 bulan (tetap)</dd></div><div><dt>Jaminan</dt><dd>${esc(d.jaminan)}</dd></div><div><dt>Lama jadi member</dt><dd>${v.scr.lama==null?"-":v.scr.lama+" tahun"}</dd></div></dl>
+    <div class="dsec">Credit Screening: ${esc(v.scr.result)}</div>
+    <div class="tw"><table><thead><tr><th>No</th><th>Kriteria</th><th>Nilai</th><th class="c">Status</th></tr></thead><tbody>${v.scr.items.map(o=>`<tr><td>${o.no}</td><td>${o.name}</td><td>${esc(o.val)}</td><td class="c">${pill(o.st)}</td></tr>`).join("")}</tbody></table></div>
+    <div class="dsec">Credit Scoring 5C</div>
+    <div class="tw"><table><thead><tr><th>Kategori</th><th class="num">Poin</th><th class="num">Maks</th><th class="num">Skor 0-100</th><th class="num">Bobot</th><th class="num">Tertimbang</th></tr></thead><tbody>${v.sc.cats.map(c=>`<tr><td>${c.name}</td><td class="num">${c.raw}</td><td class="num">${c.max}</td><td class="num">${nf(c.skor,1)}</td><td class="num">${c.w}%</td><td class="num">${nf(c.tert,2)}</td></tr>`).join("")}<tr><td colspan="5"><b>Total skor</b></td><td class="num"><b>${nf(v.sc.total,2)}</b></td></tr></tbody></table></div>
+    <div class="dsec">Keputusan</div>
+    <dl class="kv"><div><dt>Kategori risiko</dt><dd style="color:${risk[3]}">${esc(risk[0])}</dd></div><div><dt>Rekomendasi sistem</dt><dd>${esc(risk[2])}</dd></div><div><dt>Keputusan analis</dt><dd>${esc(v.keputusan)}</dd></div><div><dt>Kesesuaian</dt><dd>${esc(consist)}</dd></div></dl>
+    <div class="dsec">Alasan dan catatan analis</div>
+    <p style="margin:0;white-space:pre-wrap">${esc(v.alasan||"Tidak ada catatan.")}</p>
+    <div class="sign"><div>Analis Kredit</div><div>Atasan (bila perlu persetujuan)</div></div>
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn pri" id="btn-copy">Salin ringkasan</button><button class="btn" data-go="hasil">Ubah keputusan</button><button class="btn" id="btn-new">Pengajuan baru</button></div>
+  <div class="toast" id="toast2" role="status"></div>`;
+}
+$("btn-reset-p").addEventListener("click",()=>{Object.assign(P,JSON.parse(JSON.stringify(DEF)));buildParam();fillSelects();toForm();update()});
+window.addEventListener("hashchange",()=>show(location.hash.slice(1)));
+
+/* ---------- Mulai ---------- */
+buildNav(); buildScoring(); fillSelects(); buildChecklists(); buildParam();
+$("presets").insertAdjacentHTML("beforeend",PRESETS.map((p,i)=>`<button class="btn" data-preset="${i}">${p.label}</button>`).join("")+`<button class="btn" data-preset="reset">Kosongkan</button>`);
+applyPreset(PRESETS[0]);
+show(location.hash.slice(1)||"input");
+</script>
+</body>
+</html>
