@@ -113,6 +113,9 @@ button:disabled{opacity:.5;cursor:not-allowed}
       <div><label for="plafon">Plafon permohonan (Rp)</label><input id="plafon" inputmode="numeric"></div>
       <div><label for="belanja">Rata-rata pembelanjaan bulanan, 3 bulan terakhir (Rp)</label><input id="belanja" inputmode="numeric"></div>
       <div><label>Rasio plafon ÷ pembelanjaan</label><input id="rasio" disabled></div>
+      <div><label>Plafon rekomendasi (Rp)</label><input id="plafonRek" disabled></div>
+    </div>
+    <div class="warnbox p-warn" id="adjBox" style="display:none;margin-top:12px">
     </div>
     <div class="sbar" data-bar="sc"></div>
   </div>
@@ -140,6 +143,8 @@ button:disabled{opacity:.5;cursor:not-allowed}
     <div>
       <div class="card"><h2>B. Bobot per kategori</h2>
         <div class="scroll"><table><thead><tr><th>Kategori</th><th class="n">Bobot (%)</th><th class="n">Total Max Poin</th><th>Cek</th></tr></thead><tbody id="bbT"></tbody></table></div></div>
+      <div class="card"><h2>D. Kebijakan plafon PBM</h2><p class="hint">Plafon rekomendasi = MIN(plafon diminta, pembelanjaan x batas rasio, batas plafon). Jika plafon disesuaikan, rekomendasi menjadi "Approve dengan Catatan" bila skor masuk kategori Approve.</p>
+        <div class="fields"><div><label for="plafonMax">Batas plafon produk (Rp)</label><input id="plafonMax" type="number" step="any"></div><div><label for="rasioMax">Batas rasio (x)</label><input id="rasioMax" type="number" step="any"></div></div></div>
       <div class="card"><h2>C. Konversi Risk Level</h2>
         <div class="fields" style="margin-bottom:10px"><div><label for="maxScore">Maximum Score</label><input id="maxScore" type="number" step="any"></div><div><label for="subtr">Subtraction</label><input id="subtr" type="number" step="any"></div></div>
         <div class="scroll"><table><thead><tr><th>Level</th><th>Kategori risiko</th><th class="n">Score Conversion</th><th class="n">Weighted</th></tr></thead><tbody id="cvT"></tbody></table></div></div>
@@ -158,7 +163,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
   <aside class="slip"><div class="card">
     <h2>Keputusan akhir</h2><p class="hint">Rekomendasi sistem dari Decision Matrix. Analis bisa menyetujui atau mengubahnya dengan alasan.</p>
     <label for="finalDec">Keputusan</label><select id="finalDec"></select>
-    <div style="margin-top:10px"><label for="note">Catatan / alasan</label><textarea id="note" rows="4"></textarea></div>
+    <div style="margin-top:10px"><label for="note" id="noteLab">Catatan / alasan</label><textarea id="note" rows="4"></textarea></div>
     <div style="margin-top:10px"><label for="approver">Diputuskan oleh</label><input id="approver"></div>
     <div class="btns"><button class="pri" id="pdfBtn">Download PDF</button><button id="saveHist">Simpan ke riwayat</button></div>
     <div class="msg" id="hasilMsg"></div>
@@ -191,7 +196,7 @@ const SUBS=[ // id, kategori, nama, sumber kriteria (crit group)
 const DEF={
  maxPoin:{kawin:4,slik:18,frekC:8,frekK:10,rasio:15,milik:15,pangsa:5,jaminan:5,lokasi:15,saing:5},
  bobot:{Character:30,Capacity:25,Capital:20,Collateral:5,Condition:20},
- maxScore:5,subtr:1,
+ maxScore:5,subtr:1,plafonMax:50000000,rasioMax:1,
  levels:["Very High Risk","High Risk","Moderate Risk","Low Risk","Very Low Risk"],
  crit:{
   kawin:[["Menikah",5],["Belum Menikah",3]],
@@ -249,14 +254,25 @@ function calc(){
   r.scrV=[...form.scr,grp("7a"),grp("7b")];r.chkV=chkV;
   r.screen=r.scrV.includes("Tidak")?"TIDAK LOLOS":r.scrV.every(x=>x==="Ya")&&form.sel.kawin?"LOLOS":"BELUM LENGKAP";
   r.scored=r.screen==="LOLOS";
-  const dm=[...cfg.decision].sort((a,b)=>b[1]-a[1]).find(d=>r.total>=+d[1]-1e-9);
+  const dms=[...cfg.decision].sort((a,b)=>b[1]-a[1]),pick=v=>dms.find(d=>v>=+d[1]-1e-9);
+  // plafon rekomendasi
+  const pMax=+cfg.plafonMax||Infinity,rMax=+cfg.rasioMax||1;
+  r.plafonRek=form.belanja>0&&form.plafon>0?Math.min(form.plafon,form.belanja*rMax,pMax):null;
+  r.adj=r.plafonRek!=null&&r.plafonRek<form.plafon-0.5;
+  r.adjReason=!r.adj?"":[form.plafon>pMax?`plafon melebihi batas produk ${rp(pMax)}`:"",ratio>rMax?`rasio ${fmt(ratio)}x di atas batas ${fmt(rMax)}x`:""].filter(Boolean).join(" dan ");
+  r.totalAdj=r.total;
+  if(r.adj){const rr=r.plafonRek/form.belanja,lab=rr<=1?rc[0][0]:rr<=1.2?rc[1][0]:rc[2][0],row=r.rows.find(x=>x.id==="rasio"),pAdj=conv(levelOf("rasio",lab)??1)*row.max,cap=r.cat.Capacity;
+    r.ratioAdj=rr;r.totalAdj=r.total+(cap.mx?(pAdj-row.p)/cap.mx*100*cap.w:0)}
+  const base=r.adj?r.totalAdj:r.total,dm=pick(base);
   r.risk=dm?dm[0]:"-";r.rec=dm?dm[3]:"-";
+  if(r.adj&&dms[1]&&base>=+dms[1][1]-1e-9)r.rec="Approve dengan Catatan";
+  r.noteNeeded=r.scored&&r.adj;
   if(r.screen==="TIDAK LOLOS"){r.rec="Tolak (tidak lolos screening)";r.risk="-"}
   else if(r.screen!=="LOLOS"){r.rec="Menunggu hasil screening";r.risk="-"}
   r.final=form.final==="__sys"?r.rec:form.final;
   return r;
 }
-const tone=t=>/reject|tolak/i.test(t)?"bad":/review|escalat|tinggi|sedang|menunggu/i.test(t)?"warn":"ok";
+const tone=t=>/reject|tolak/i.test(t)?"bad":/review|escalat|tinggi|sedang|menunggu|catatan/i.test(t)?"warn":"ok";
 
 /* ---------------- render: penilaian ---------------- */
 function buildPenilaian(){
@@ -294,7 +310,7 @@ function render(){
   $("scLock").textContent=r.screen==="TIDAK LOLOS"?"Credit Scoring 5C tidak dilanjutkan karena calon debitur TIDAK LOLOS screening.":"Credit Scoring 5C akan muncul setelah screening dinyatakan LOLOS. Lengkapi Status Perkawinan dan semua kriteria screening.";
   const sp=`<span class="pill p-${r.screen==="LOLOS"?"ok":r.screen==="TIDAK LOLOS"?"bad":"warn"}">${r.screen}</span>`;
   document.querySelectorAll('[data-bar="scr"]').forEach(b=>b.innerHTML=`<span class="t">Hasil screening: ${sp}</span><span class="btns">${r.scored?'<button class="pri" data-act="toScore">Lanjut ke Credit Scoring</button>':r.screen==="TIDAK LOLOS"?'<button class="pri" data-act="toHasil">Lanjut ke keputusan (Tolak)</button>':'<button disabled>Lengkapi screening</button>'}</span>`);
-  document.querySelectorAll('[data-bar="sc"]').forEach(b=>b.innerHTML=`<span class="t">Total Score: ${fmt(r.total)} · ${esc(r.risk)} · Rekomendasi: <span class="pill p-${tone(r.rec)}">${esc(r.rec)}</span></span><span class="btns"><button class="pri" data-act="approve">Approve rekomendasi</button><button data-act="toHasil">Ubah keputusan</button></span>`);
+  document.querySelectorAll('[data-bar="sc"]').forEach(b=>b.innerHTML=`<span class="t">Total Score: ${fmt(r.total)} · ${esc(r.risk)} · Rekomendasi: <span class="pill p-${tone(r.rec)}">${esc(r.rec)}</span>${r.adj?` · Plafon rekomendasi ${rp(r.plafonRek)}`:""}</span><span class="btns"><button class="pri" data-act="approve">Approve rekomendasi</button><button data-act="toHasil">Ubah keputusan</button></span>`);
   const st=v=>v==="Ya"?'<span class="pill p-ok">Ya</span>':v==="Tidak"?'<span class="pill p-bad">Tidak</span>':'<span class="pill p-warn">Belum diisi</span>';
   $("s7a").innerHTML=st(r.scrV[6]);$("s7b").innerHTML=st(r.scrV[7]);
   const t=tone(r.rec),col=`var(--${t})`;
@@ -302,7 +318,11 @@ function render(){
   const sEl=$("stamp");sEl.textContent=r.rec;sEl.style.color=col;
   $("bars").innerHTML=CATS.map(c=>{const k=r.cat[c];return `<div><span>${c}</span><span class="bar"><i style="width:${Math.min(100,k.sk)}%"></i></span><span class="n" style="text-align:right">${fmt(k.wt)}/${fmt(k.w*100)}</span></div>`}).join("");
   $("bars").style.display=r.scored?"":"none";
-  $("scrStat").innerHTML=`Screening: <span class="pill p-${r.screen==="LOLOS"?"ok":r.screen==="TIDAK LOLOS"?"bad":"warn"}">${r.screen}</span> · Kategori: <b>${esc(r.risk)}</b>`;
+  $("plafonRek").value=r.plafonRek==null?"":rp(r.plafonRek);
+  $("adjBox").style.display=r.adj&&r.scored?"":"none";
+  $("adjBox").innerHTML=r.adj?`<b>Plafon perlu disesuaikan:</b> ${esc(r.adjReason)}. Plafon rekomendasi <b>${rp(r.plafonRek)}</b> (diminta ${rp(form.plafon)}). Skor dengan plafon rekomendasi: <b>${fmt(r.totalAdj)}</b>. Catatan analis untuk pemutus wajib diisi di tab Hasil.`:"";
+  $("noteLab").textContent=r.noteNeeded?"Catatan analis untuk pemutus (wajib, plafon disesuaikan)":"Catatan / alasan";
+  $("scrStat").innerHTML=`${r.adj&&r.scored?`<div style="margin-bottom:6px">Plafon rekomendasi: <b>${rp(r.plafonRek)}</b><br><span class="sample">Skor dengan plafon rekomendasi ${fmt(r.totalAdj)}</span></div>`:""}Screening: <span class="pill p-${r.screen==="LOLOS"?"ok":r.screen==="TIDAK LOLOS"?"bad":"warn"}">${r.screen}</span> · Kategori: <b>${esc(r.risk)}</b>`;
   renderParamDynamic(r);renderReport(r);
   try{localStorage.setItem("pbm_form",JSON.stringify(form))}catch(e){}
   return r;
@@ -312,7 +332,7 @@ function render(){
 function buildParam(){
   $("mpT").innerHTML=SUBS.map(([id,cat,name])=>`<tr><td>${cat}</td><td>${esc(name)}</td><td class="n"><input class="num" type="number" step="any" data-mp="${id}" value="${esc(cfg.maxPoin[id])}"></td></tr>`).join("")+`<tr><td colspan="2"><b>Total</b></td><td class="n"><b id="mpTot"></b></td></tr>`;
   $("bbT").innerHTML=CATS.map(c=>`<tr><td>${c}</td><td class="n"><input class="num" type="number" step="any" data-bb="${c}" value="${esc(cfg.bobot[c])}"></td><td class="n" id="bt_${c}"></td><td id="bc_${c}"></td></tr>`).join("")+`<tr><td><b>Total</b></td><td class="n"><b id="bbTot"></b></td><td class="n"><b id="bmTot"></b></td><td id="bcTot"></td></tr>`;
-  $("maxScore").value=cfg.maxScore;$("subtr").value=cfg.subtr;
+  $("maxScore").value=cfg.maxScore;$("subtr").value=cfg.subtr;$("plafonMax").value=cfg.plafonMax;$("rasioMax").value=cfg.rasioMax;
   $("dmT").innerHTML=cfg.decision.map((d,i)=>`<tr><td><input data-dm="${i}:0" value="${esc(d[0])}"></td><td class="n"><input class="num" type="number" step="any" data-dm="${i}:1" value="${esc(d[1])}"></td><td class="n"><input class="num" type="number" step="any" data-dm="${i}:2" value="${esc(d[2])}"></td><td><input data-dm="${i}:3" value="${esc(d[3])}"></td></tr>`).join("");
   const grpMax=g=>SUBS.filter(s=>s[3]===g).map(s=>({cat:s[1],id:s[0]}));
   const groups=[...new Set(SUBS.map(s=>s[3]))];
@@ -333,7 +353,7 @@ function renderParamDynamic(){
 
 /* ---------------- render: report ---------------- */
 function renderReport(r){
-  const d=form.deb,opts=["__sys",...new Set(cfg.decision.map(x=>x[3])),"Tolak (tidak lolos screening)"];
+  const d=form.deb,opts=["__sys",...new Set([...cfg.decision.map(x=>x[3]),"Approve dengan Catatan"]),"Tolak (tidak lolos screening)"];
   const fd=$("finalDec");if(document.activeElement!==fd){fd.innerHTML=opts.map(o=>`<option value="${esc(o)}">${o==="__sys"?"Sesuai rekomendasi sistem ("+esc(r.rec)+")":esc(o)}</option>`).join("");fd.value=opts.includes(form.final)?form.final:"__sys"}
   const t=tone(r.final);
   $("report").innerHTML=`<div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:flex-start">
@@ -346,9 +366,10 @@ function renderReport(r){
    <h3>Ringkasan per kategori</h3><div class="scroll"><table><thead><tr><th>Kategori</th><th class="n">Bobot</th><th class="n">Poin</th><th class="n">Skor kategori</th><th class="n">Skor tertimbang</th></tr></thead><tbody>
    ${CATS.map(c=>{const k=r.cat[c];return `<tr><td>${c}</td><td class="n">${fmt(k.w*100)}%</td><td class="n">${fmt(k.got)} / ${fmt(k.mx)}</td><td class="n">${fmt(k.sk)}</td><td class="n">${fmt(k.wt)}</td></tr>`}).join("")}
    <tr><td colspan="4"><b>Total Score</b></td><td class="n"><b>${fmt(r.total)}</b></td></tr></tbody></table></div>`:`<p style="margin:12px 0 0;color:#5b6878">Credit Scoring 5C tidak dihitung karena screening ${r.screen==="TIDAK LOLOS"?"tidak lolos":"belum lengkap"}.</p>`}
+   ${r.scored&&r.plafonRek!=null?`<h3>Plafon</h3><div class="kv"><div><span>Plafon diminta:</span> ${rp(form.plafon)}</div><div><span>Rata-rata pembelanjaan bulanan:</span> ${rp(form.belanja)}</div><div><span>Rasio:</span> ${fmt(r.ratio)}x (batas ${fmt(+cfg.rasioMax)}x)</div><div><span>Plafon rekomendasi:</span> <b>${rp(r.plafonRek)}</b></div>${r.adj?`<div><span>Skor dengan plafon rekomendasi:</span> <b>${fmt(r.totalAdj)}</b></div><div><span>Alasan penyesuaian:</span> ${esc(r.adjReason)}</div>`:""}</div>`:""}
    <h3>Keputusan</h3><div class="kv"><div><span>Kategori risiko:</span> <b>${esc(r.risk)}</b></div><div><span>Rekomendasi sistem:</span> <b>${esc(r.rec)}</b></div>
    <div><span>Keputusan akhir:</span> <b style="color:${t==="bad"?"#b42318":t==="warn"?"#a56a00":"#1d7a46"}">${esc(r.final)}</b></div><div><span>Diputuskan oleh:</span> ${esc(form.approver||"-")}</div></div>
-   ${form.note?`<p style="margin:8px 0 0"><span style="color:#5b6878">Catatan:</span> ${esc(form.note)}</p>`:""}`;
+   ${form.note?`<p style="margin:8px 0 0"><span style="color:#5b6878">${r.noteNeeded?"Catatan analis untuk pemutus":"Catatan"}:</span> ${esc(form.note)}</p>`:r.noteNeeded?`<p style="margin:8px 0 0;color:#b42318"><b>Catatan analis untuk pemutus wajib diisi.</b></p>`:""}`;
 }
 
 /* ---------------- PDF writer (tanpa library) ---------------- */
@@ -383,6 +404,7 @@ function buildPDF(r){
   text(M+12,y-18,"KEPUTUSAN AKHIR",8.5,true,tc);text(M+12,y-36,r.final,15,true,tc);
   const rk="Rekomendasi sistem: "+r.rec;text(W-M-12-tw(rk,9),y-18,rk,9,false,"334455");
   const ks="Kategori risiko: "+r.risk;text(W-M-12-tw(ks,9),y-32,ks,9,false,"334455");
+  if(r.adj&&r.scored){const pr="Plafon rekomendasi: "+rp(r.plafonRek);text(W-M-12-tw(pr,9,true),y-44+2,pr,9,true,tc)}
   y-=56;
   head("Data calon debitur");
   const half=(W-2*M)/2;DEB.forEach((d,i)=>{if(i%2===0){need(14);y-=13}text(M+(i%2)*half,y,d[1]+": ",9,false,"5b6878");text(M+(i%2)*half+tw(d[1]+": ",9),y,form.deb[d[0]]||"-",9,true)});
@@ -392,14 +414,17 @@ function buildPDF(r){
   if(r.scored){head("Rincian scoring 5C");
   table([{t:"Kategori",w:62},{t:"Sub-parameter",w:150},{t:"Kriteria",w:183},{t:"Level",w:36,r:1},{t:"Poin",w:42,r:1},{t:"Maks",w:42,r:1}],
    r.rows.map(x=>[x.cat,x.name,x.lab+(x.id==="rasio"&&r.ratio!=null?" ("+fmt(r.ratio)+"x)":""),String(x.lv??"-"),fmt(x.p),fmt(x.max)]));
-  if(form.plafon){need(14);y-=12;text(M,y,`Plafon permohonan ${rp(form.plafon)}  -  Rata-rata pembelanjaan bulanan ${rp(form.belanja)}`,8.5,false,"5b6878")}
+  if(r.plafonRek!=null){head("Plafon");
+   table([{t:"Plafon diminta",w:105,r:1},{t:"Rata-rata belanja/bulan",w:115,r:1},{t:"Rasio",w:70,r:1},{t:"Plafon rekomendasi",w:115,r:1},{t:"Skor plafon rekomendasi",w:110,r:1}],
+    [[rp(form.plafon),rp(form.belanja),fmt(r.ratio)+"x",rp(r.plafonRek),r.adj?fmt(r.totalAdj):"-"]]);
+   if(r.adj){need(14);y-=12;text(M,y,"Alasan penyesuaian: "+r.adjReason+".",8.5,false,"a56a00")}}
   head("Ringkasan per kategori");
   table([{t:"Kategori",w:115},{t:"Bobot",w:70,r:1},{t:"Poin",w:110,r:1},{t:"Skor kategori",w:110,r:1},{t:"Skor tertimbang",w:110,r:1}],
    [...CATS.map(c=>{const k=r.cat[c];return [c,fmt(k.w*100)+"%",fmt(k.got)+" / "+fmt(k.mx),fmt(k.sk),fmt(k.wt)]}),["Total Score","","","",fmt(r.total)]],{boldLast:true});}
   else{head("Credit scoring 5C");need(14);y-=13;text(M,y,"Tidak dihitung karena screening "+(r.screen==="TIDAK LOLOS"?"tidak lolos.":"belum lengkap."),9.5)}
   head("Decision matrix yang dipakai");
   table([{t:"Kategori risiko",w:170},{t:"Rentang skor",w:120},{t:"Rekomendasi",w:225}],cfg.decision.map(d=>[d[0]+(d[0]===r.risk?"  (hasil)":""),d[1]+" - "+d[2],d[3]]));
-  head("Catatan keputusan");
+  head(r.noteNeeded?"Catatan analis untuk pemutus":"Catatan keputusan");
   wrap(form.note||"-",W-2*M,9.5).forEach(l=>{need(13);y-=13;text(M,y,l,9.5)});
   need(30);y-=22;text(M,y,"Dianalisa oleh: ",9,false,"5b6878");text(M+tw("Dianalisa oleh: ",9),y,form.deb.analis||"-",9,true);
   text(M+half,y,"Diputuskan oleh: ",9,false,"5b6878");text(M+half+tw("Diputuskan oleh: ",9),y,form.approver||"-",9,true);
@@ -450,10 +475,10 @@ document.addEventListener("input",e=>{const t=e.target,d=t.dataset;
   else if(d.bb){cfg.bobot[d.bb]=t.value===""?0:+t.value;render()}
   else if(d.dm){const [i,k]=d.dm.split(":").map(Number);cfg.decision[i][k]=k===1||k===2?+t.value:t.value;render()}
   else if(d.lv){const [g,j]=d.lv.split(":");cfg.crit[g][+j][1]=+t.value;render()}
-  else if(t.id==="maxScore"||t.id==="subtr"){cfg[t.id]=+t.value;render()}
+  else if(["maxScore","subtr","plafonMax","rasioMax"].includes(t.id)){cfg[t.id]=+t.value;render()}
   else if(t.id==="finalDec"){form.final=t.value;render()}
   else if(t.id==="note"||t.id==="approver"){form[t.id]=t.value;render()}
-  if(d.mp||d.bb||d.dm||d.lv||t.id==="maxScore"||t.id==="subtr"){try{localStorage.setItem("pbm_cfg",JSON.stringify(cfg))}catch(e){}$("cfgMsg").textContent="Ada perubahan yang belum disimpan untuk semua pengguna."}
+  if(d.mp||d.bb||d.dm||d.lv||["maxScore","subtr","plafonMax","rasioMax"].includes(t.id)){try{localStorage.setItem("pbm_cfg",JSON.stringify(cfg))}catch(e){}$("cfgMsg").textContent="Ada perubahan yang belum disimpan untuk semua pengguna."}
 });
 document.addEventListener("change",e=>{if(e.target.id==="plafon"||e.target.id==="belanja")fillPenilaian()});
 $("saveCfg").onclick=async()=>{const m=$("cfgMsg");
@@ -469,13 +494,14 @@ document.addEventListener("click",e=>{const a=e.target.closest("[data-act]");if(
   else if(k==="toHasil")location.hash="hasil";
   else if(k==="approve"){form.final="__sys";render();location.hash="hasil"}});
 $("resetForm").onclick=()=>{form=blankForm();Object.keys(form.deb).forEach(k=>{if(k!=="tgl"&&k!=="analis")form.deb[k]=""});form.scr=SCR.map(()=>"");form.chk=CHK.map(()=>"");form.sel.kawin="";fillPenilaian();render()};
-$("pdfBtn").onclick=async()=>{const m=$("hasilMsg"),r=calc();
+const noteOk=r=>{if(r.noteNeeded&&!String(form.note||"").trim()){$("hasilMsg").textContent="Isi dulu Catatan analis untuk pemutus, karena plafon disesuaikan.";$("note").focus();return false}return true};
+$("pdfBtn").onclick=async()=>{const m=$("hasilMsg"),r=calc();if(!noteOk(r))return;
   const name=`Credit Scoring PBM - ${asc(form.deb.nama||"Debitur").replace(/[^\w ]/g,"").trim()} - ${form.deb.tgl||""}.pdf`;
   const bytes=buildPDF(r);
   if(dl){try{await dl.save({filename:name,data:new Blob([bytes])});m.textContent="PDF berhasil dibuat."}catch(err){m.textContent=err?.code==="declined"?"Download dibatalkan.":"Download tidak tersedia di tampilan ini. Buka halaman artifact di claude.ai."}}
   else{const u=URL.createObjectURL(new Blob([bytes],{type:"application/pdf"}));const a=document.createElement("a");a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();m.textContent="Jika download tidak berjalan, buka halaman ini langsung dari claude.ai."}};
-$("saveHist").onclick=async()=>{const m=$("hasilMsg"),r=calc();
-  const rec={at:Date.now(),total:Math.round(r.total*100)/100,rec:r.rec,final:r.final,risk:r.risk,screen:r.screen,form:clone(form)};
+$("saveHist").onclick=async()=>{const m=$("hasilMsg"),r=calc();if(!noteOk(r))return;
+  const rec={at:Date.now(),plafonRek:r.plafonRek,total:Math.round((r.adj?r.totalAdj:r.total)*100)/100,rec:r.rec,final:r.final,risk:r.risk,screen:r.screen,form:clone(form)};
   if(db){$("saveHist").disabled=true;try{await db.collection("history").add(rec);m.textContent="Tersimpan ke riwayat bersama."}catch(err){m.textContent=err?.code==="quota_exceeded"?"Riwayat penuh. Hapus sebagian data dulu.":"Gagal menyimpan ke riwayat."}$("saveHist").disabled=false}
   else{hist.unshift(rec);try{localStorage.setItem("pbm_hist",JSON.stringify(hist.slice(0,200)))}catch(e){}renderHist();m.textContent="Tersimpan ke riwayat (browser ini)."}};
 $("hT").onclick=e=>{const b=e.target.closest("[data-open]");if(!b)return;const h=hist[+b.dataset.open];if(!h?.form)return;form=Object.assign(blankForm(),clone(h.form));fillPenilaian();render();location.hash="penilaian"};
