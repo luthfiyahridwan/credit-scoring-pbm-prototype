@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Credit Scoring PBM</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* VOICE: calm, precise analyst tool, like a bank credit memo
+   IDEA: a scoring slip that fills itself in while the analyst works
+   PICTURE: the live score gauge and decision stamp, always beside the inputs
+   COLOUR and TYPE: white ground, ink navy #1F4E78 from the Excel, decision colours green/amber/red; Public Sans
+   LAYOUT: tabs on top; inputs left, sticky result slip right; stacks on phones */
+:root{color-scheme:light dark;
+--bg:light-dark(#f4f6f9,#0f141b);--card:light-dark(#fff,#171e27);--ink:light-dark(#14202e,#e6edf5);--mute:light-dark(#5b6878,#97a5b5);
+--line:light-dark(#dfe5ec,#2a3442);--navy:light-dark(#1f4e78,#7fb3e0);--navyb:#1f4e78;--soft:light-dark(#eaf1f8,#1c2a3a);
+--ok:light-dark(#1d7a46,#5fd08e);--warn:light-dark(#a56a00,#f2b84b);--bad:light-dark(#b42318,#ff8a80);--input:light-dark(#fff,#111821)}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 "Public Sans",system-ui,sans-serif;overflow-x:clip}
+header{background:var(--navyb);color:#fff;padding:18px max(4vw,16px) 0}
+.top{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;max-width:1240px;margin:0 auto}
+h1{margin:0;font-size:clamp(24px,3vw,34px);line-height:1.05;letter-spacing:-.01em}
+.sub{opacity:.8;font-size:13px;margin:4px 0 0}
+.sync{font-size:12px;background:rgba(255,255,255,.12);padding:6px 10px;border-radius:99px}
+nav{display:flex;gap:4px;max-width:1240px;margin:14px auto 0;overflow-x:auto}
+nav a{color:#cfe0f0;text-decoration:none;padding:11px 16px;border-radius:10px 10px 0 0;font-weight:600;white-space:nowrap;flex:none}
+nav a.on{background:var(--bg);color:var(--ink)}
+main{max-width:1240px;margin:0 auto;padding:20px max(4vw,16px) 60px}
+.view{display:none}.view.on{display:block}
+.grid{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:20px;align-items:start}
+@media(max-width:900px){.grid{grid-template-columns:minmax(0,1fr)}.slip{position:static!important;order:-1}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:16px}
+.card h2{font-size:18px;margin:0 0 4px}.card .hint{color:var(--mute);font-size:13px;margin:0 0 12px}
+.fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+label{display:block;font-size:13px;font-weight:600;color:var(--mute);margin-bottom:4px}
+input,select,textarea{width:100%;font:inherit;font-size:16px;color:var(--ink);background:var(--input);border:1px solid var(--line);border-radius:9px;padding:9px 10px;min-height:42px}
+input:focus,select:focus,textarea:focus,button:focus-visible{outline:2px solid var(--navy);outline-offset:1px}
+select:disabled{opacity:.55}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{background:var(--soft);text-align:left;font-size:12.5px;color:var(--mute);font-weight:700;padding:8px}
+td{border-top:1px solid var(--line);padding:7px 8px;vertical-align:middle}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+td input,td select{min-height:38px;padding:6px 8px}
+.num{max-width:90px;text-align:right}
+.scroll{overflow-x:auto}
+.pill{display:inline-block;padding:2px 9px;border-radius:99px;font-size:12px;font-weight:700;white-space:nowrap}
+.p-ok{background:color-mix(in srgb,var(--ok) 15%,transparent);color:var(--ok)}
+.p-bad{background:color-mix(in srgb,var(--bad) 15%,transparent);color:var(--bad)}
+.p-warn{background:color-mix(in srgb,var(--warn) 18%,transparent);color:var(--warn)}
+.slip{position:sticky;top:12px}
+.slip .card{padding:20px}
+.gauge{position:relative;height:150px}.gauge svg{position:absolute;inset:0;width:100%;height:100%}
+.score{position:absolute;left:0;right:0;top:62px;text-align:center}
+.score b{font-size:46px;line-height:1;font-variant-numeric:tabular-nums}.score span{display:block;color:var(--mute);font-size:12px}
+.stamp{margin:10px 0 14px;text-align:center;border:2px solid currentColor;border-radius:10px;padding:8px;font-weight:800;font-size:18px}
+.bars div{display:grid;grid-template-columns:86px minmax(0,1fr) 54px;gap:8px;align-items:center;font-size:13px;margin:6px 0}
+.bar{height:8px;background:var(--soft);border-radius:9px;overflow:hidden}.bar i{display:block;height:100%;background:var(--navy);border-radius:9px}
+.btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+button{font:inherit;font-weight:700;border-radius:10px;padding:10px 16px;min-height:44px;cursor:pointer;border:1px solid var(--line);background:var(--card);color:var(--ink)}
+button.pri{background:var(--navyb);border-color:var(--navyb);color:#fff}
+button:disabled{opacity:.5;cursor:not-allowed}
+.msg{font-size:13px;margin-top:8px;color:var(--mute);min-height:1.2em}
+.warnbox{border-radius:10px;padding:10px 12px;font-size:13.5px;margin-bottom:12px}
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px}
+.report{background:#fff;color:#14202e;border:1px solid var(--line);border-radius:14px;padding:28px;max-width:820px}
+.report h3{margin:18px 0 6px;font-size:15px;color:#1f4e78}
+.report table th{background:#eaf1f8;color:#334}.report td{border-color:#dfe5ec}
+.kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:4px 18px;font-size:14px}
+.kv span{color:#5b6878}
+.sbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;border-radius:12px;padding:12px 14px;margin:12px 0;border:1px solid var(--line);background:var(--soft)}
+#scr select{min-width:160px}
+.sbar .t{font-weight:700}.sbar .btns{margin:0}
+.locked{border:1px dashed var(--line);border-radius:14px;padding:22px;text-align:center;color:var(--mute);margin-bottom:16px}
+.empty{color:var(--mute);text-align:center;padding:24px}
+.sample{font-size:12px;color:var(--mute)}
+@media(max-width:600px){table{font-size:13px}.stack thead{display:none}.stack tr{display:grid;padding-block:10px}.stack td{display:flow-root;border:0;padding:3px 0;padding-inline-start:8em;text-align:start}.stack td::before{content:attr(data-l);float:inline-start;width:7.5em;margin-inline-start:-8em;white-space:normal;color:var(--mute);font-size:12px}.stack td:empty{display:none}.report{padding:16px}}
+@media (prefers-reduced-motion:no-preference){.bar i,#arc{transition:all .35s ease}}
+</style>
+<script>new MutationObserver(()=>{for(const c of document.querySelectorAll('.stack td:not([data-l])')){let i=0,p=c;while(p=p.previousElementSibling)i+=p.colSpan;c.dataset.l=c.closest('table').rows[0].cells[i]?.textContent||''}}).observe(document,{childList:true,subtree:true})</script>
+</head>
+<body>
+<header>
+  <div class="top">
+    <div><h1>Credit Scoring PBM</h1><p class="sub">Pembiayaan Belanja Member · Screening, Scoring 5C, Decision Matrix</p></div>
+    <span class="sync" id="sync">Mode lokal</span>
+  </div>
+  <nav id="nav">
+    <a href="#penilaian">1. Penilaian</a><a href="#parameter">2. Parameter &amp; Matrix</a><a href="#hasil">3. Hasil &amp; PDF</a><a href="#riwayat">4. Riwayat</a>
+  </nav>
+</header>
+<main>
+<!-- ============ PENILAIAN ============ -->
+<section class="view" id="v-penilaian">
+<div class="grid">
+<div>
+  <div class="card"><h2>Data calon debitur</h2><p class="sample">Terisi data contoh, silakan ganti.</p>
+    <div class="fields" id="debitur"></div></div>
+  <div class="card" id="scrCard"><h2>Credit screening</h2><p class="hint">Seluruh kriteria wajib "Ya". Satu "Tidak" berarti tidak lolos dan tidak lanjut ke scoring. Kriteria 7a dan 7b terisi otomatis dari checklist.</p>
+    <div class="sbar" data-bar="scr"></div>
+    <div class="scroll"><table class="stack"><thead><tr><th>No</th><th>Kriteria</th><th>Rule</th><th>Status</th></tr></thead><tbody id="scr"></tbody></table></div>
+    <h2 style="margin-top:16px;font-size:15px">Checklist dokumen 7a dan 7b</h2>
+    <p class="hint">Item pasangan hanya muncul bila Status Perkawinan "Menikah".</p>
+    <div class="scroll"><table class="stack"><thead><tr><th>No</th><th>Item cek</th><th>Status</th></tr></thead><tbody id="chk"></tbody></table></div>
+    <div class="sbar" data-bar="scr"></div>
+  </div>
+  <div class="locked" id="scLock"></div>
+  <div class="card" id="scCard"><h2>Credit scoring 5C</h2>
+    <div class="sbar" data-bar="sc"></div><p class="hint">Pilih kriteria sesuai data debitur. Poin dihitung otomatis: Score Conversion (Risk Level) x Max Poin.</p>
+    <div class="scroll"><table class="stack"><thead><tr><th>Kategori</th><th>Sub-parameter</th><th>Kriteria</th><th class="n">Poin</th><th class="n">Maks</th></tr></thead><tbody id="sc"></tbody></table></div>
+    <div class="fields" style="margin-top:14px">
+      <div><label for="plafon">Plafon permohonan (Rp)</label><input id="plafon" inputmode="numeric"></div>
+      <div><label for="belanja">Rata-rata pembelanjaan bulanan, 3 bulan terakhir (Rp)</label><input id="belanja" inputmode="numeric"></div>
+      <div><label>Rasio plafon ÷ pembelanjaan</label><input id="rasio" disabled></div>
+    </div>
+    <div class="sbar" data-bar="sc"></div>
+  </div>
+</div>
+<aside class="slip"><div class="card">
+  <div class="gauge"><svg id="gsvg" viewBox="0 0 300 150" aria-hidden="true"></svg><div class="score"><b id="tot">0</b><span>Total Score dari 100</span></div></div>
+  <div class="stamp" id="stamp">-</div>
+  <div class="bars" id="bars"></div>
+  <div id="scrStat" style="margin-top:10px;font-size:13px"></div>
+  <div class="btns"><button class="pri" id="goHasil">Lanjut ke hasil</button><button id="resetForm">Form baru</button></div>
+</div></aside>
+</div>
+</section>
+
+<!-- ============ PARAMETER & MATRIX ============ -->
+<section class="view" id="v-parameter">
+  <div class="card" style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between">
+    <div><h2>Parameter dan Matrix Nilai</h2><p class="hint" style="margin:0">Semua angka di sini bisa diubah. Skor di tab Penilaian langsung ikut berubah. Klik Simpan supaya perubahan dipakai juga oleh pengguna lain.</p></div>
+    <div class="btns" style="margin:0"><button class="pri" id="saveCfg">Simpan untuk semua</button><button id="defCfg">Kembalikan default</button></div>
+  </div>
+  <div class="msg" id="cfgMsg"></div>
+  <div class="two">
+    <div class="card"><h2>A. Alokasi Max Poin</h2><p class="hint">Total tiap kategori harus sama dengan Bobot x 100.</p>
+      <div class="scroll"><table><thead><tr><th>Kategori</th><th>Sub-parameter</th><th class="n">Max Poin</th></tr></thead><tbody id="mpT"></tbody></table></div></div>
+    <div>
+      <div class="card"><h2>B. Bobot per kategori</h2>
+        <div class="scroll"><table><thead><tr><th>Kategori</th><th class="n">Bobot (%)</th><th class="n">Total Max Poin</th><th>Cek</th></tr></thead><tbody id="bbT"></tbody></table></div></div>
+      <div class="card"><h2>C. Konversi Risk Level</h2>
+        <div class="fields" style="margin-bottom:10px"><div><label for="maxScore">Maximum Score</label><input id="maxScore" type="number" step="any"></div><div><label for="subtr">Subtraction</label><input id="subtr" type="number" step="any"></div></div>
+        <div class="scroll"><table><thead><tr><th>Level</th><th>Kategori risiko</th><th class="n">Score Conversion</th><th class="n">Weighted</th></tr></thead><tbody id="cvT"></tbody></table></div></div>
+    </div>
+  </div>
+  <div class="card"><h2>Decision Matrix</h2><p class="hint">Kategori dipilih dari batas bawah "Skor dari" tertinggi yang tidak melebihi Total Score.</p>
+    <div class="scroll"><table class="stack"><thead><tr><th>Kategori risiko</th><th class="n">Skor dari</th><th class="n">Skor sampai</th><th>Rekomendasi keputusan</th></tr></thead><tbody id="dmT"></tbody></table></div></div>
+  <div class="card"><h2>Parameter scoring (Risk Level per kriteria)</h2><p class="hint">Risk Level 1 sampai 5, 5 = risiko paling rendah. Poin = Score Conversion x Max Poin.</p>
+    <div class="scroll"><table class="stack"><thead><tr><th>Kategori</th><th>Sub-parameter</th><th>Kriteria</th><th class="n">Risk Level</th><th class="n">Conversion</th><th class="n">Poin</th></tr></thead><tbody id="psT"></tbody></table></div></div>
+</section>
+
+<!-- ============ HASIL ============ -->
+<section class="view" id="v-hasil">
+<div class="grid">
+  <div id="report" class="report"></div>
+  <aside class="slip"><div class="card">
+    <h2>Keputusan akhir</h2><p class="hint">Rekomendasi sistem dari Decision Matrix. Analis bisa menyetujui atau mengubahnya dengan alasan.</p>
+    <label for="finalDec">Keputusan</label><select id="finalDec"></select>
+    <div style="margin-top:10px"><label for="note">Catatan / alasan</label><textarea id="note" rows="4"></textarea></div>
+    <div style="margin-top:10px"><label for="approver">Diputuskan oleh</label><input id="approver"></div>
+    <div class="btns"><button class="pri" id="pdfBtn">Download PDF</button><button id="saveHist">Simpan ke riwayat</button></div>
+    <div class="msg" id="hasilMsg"></div>
+  </div></aside>
+</div>
+</section>
+
+<!-- ============ RIWAYAT ============ -->
+<section class="view" id="v-riwayat">
+  <div class="card"><h2>Riwayat penilaian</h2><p class="hint" id="histHint">Penilaian yang disimpan muncul di sini secara langsung.</p>
+  <div class="scroll"><table class="stack"><thead><tr><th>Tanggal</th><th>Debitur</th><th>Cabang</th><th class="n">Score</th><th>Rekomendasi</th><th>Keputusan</th><th>Analis</th><th></th></tr></thead><tbody id="hT"></tbody></table></div></div>
+</section>
+</main>
+
+<script>
+{
+/* ---------------- defaults (dari Excel Credit Scoring PBM 24-11-2026) ---------------- */
+const CATS=["Character","Capacity","Capital","Collateral","Condition"];
+const SUBS=[ // id, kategori, nama, sumber kriteria (crit group)
+ ["kawin","Character","Status Perkawinan","kawin"],
+ ["slik","Character","Kredit Historis - SLIK Kolektibilitas","slik"],
+ ["frekC","Character","Frekuensi Transaksi (rata-rata/bulan)","frek"],
+ ["frekK","Capacity","Frekuensi Transaksi (rata-rata/bulan)","frek"],
+ ["rasio","Capacity","Rasio Plafon Permohonan terhadap Pembelanjaan Bulanan","rasio"],
+ ["milik","Capital","Kepemilikan Tempat Usaha","milik"],
+ ["pangsa","Capital","Pangsa Pasokan ke Indogrosir","pangsa"],
+ ["jaminan","Collateral","Jenis Jaminan/Agunan","jaminan"],
+ ["lokasi","Condition","Lokasi Usaha dari Cabang Indogrosir Terdaftar","lokasi"],
+ ["saing","Condition","Lingkungan Toko (Jumlah Pesaing)","saing"]];
+const DEF={
+ maxPoin:{kawin:4,slik:18,frekC:8,frekK:10,rasio:15,milik:15,pangsa:5,jaminan:5,lokasi:15,saing:5},
+ bobot:{Character:30,Capacity:25,Capital:20,Collateral:5,Condition:20},
+ maxScore:5,subtr:1,
+ levels:["Very High Risk","High Risk","Moderate Risk","Low Risk","Very Low Risk"],
+ crit:{
+  kawin:[["Menikah",5],["Belum Menikah",3]],
+  slik:[["Kol 1",5],["Kol 2",1]],
+  frek:[["> 10x (Rutin/Stabil)",5],["7x - 10x (Cukup Rutin)",4],["≥ 3x sampai < 7x",3],["< 3x (Tidak Rutin/Sporadis)",2]],
+  rasio:[["Plafon ÷ Pembelanjaan <= 1x",5],["Plafon ÷ Pembelanjaan 1,01 - 1,2x",4],["Plafon ÷ Pembelanjaan > 1,2x (review manual analis)",2]],
+  milik:[["Milik Sendiri",5],["Sewa ≥ 3 tahun",3],["Sewa < 3 tahun",2]],
+  pangsa:[["> 70%",5],["40% - 70%",3],["< 40%",2]],
+  jaminan:[["Persediaan Barang (Daftar Persediaan)",5],["Emas/Logam Mulia",5],["Cash Collateral (Deposito Berjangka)",5],["Kendaraan",5],["Rumah/Tanah/Ruko/Kios",5],["Tanpa Agunan",1]],
+  lokasi:[["< 5 KM",5],["5 - 10 KM",3],["> 10 KM",2]],
+  saing:[["0 - 2",5],["3 - 5",3],["> 5",2]]},
+ decision:[["Risiko Sangat Rendah",90,100,"Auto Approve"],["Risiko Rendah",80,89,"Approve"],["Risiko Sedang",70,79,"Manual Review"],["Risiko Tinggi",55,69,"Escalated Review"],["Risiko Sangat Tinggi",0,54,"Auto Reject"]]
+};
+const SCR=[["1","Usia","Minimal 21 tahun"],["2","Status Hubungan Supplier","Member Merah masih berlaku"],["3","Status Keaktifan Transaksi","Ada transaksi dalam 3 bulan terakhir"],["4","Validasi Identitas (Beeza)","Hasil Beeza valid (debitur dan pasangan)"],["5","Lama Berhubungan dengan Indogrosir","Minimum 1 tahun"],["6","SLIK Kolektibilitas","Maksimal Kol 2"]];
+const CHK=[["7a.1","Foto KTP calon debitur",0],["7a.2","Foto diri calon debitur",0],["7a.3","Foto diri & KTP",0],["7a.4","Foto Kartu Keluarga",0],["7a.5","Formulir Permohonan Pembiayaan (form fisik)",0],["7a.6","Foto KTP pasangan",1],["7a.7","Surat Persetujuan Pasangan",1],
+ ["7b.1","NIK pada foto KTP sama dengan NIK yang diinput",0],["7b.2","KK memuat nama calon debitur dan sesuai status perkawinan",0],["7b.3","KK memuat nama pasangan sesuai data pasangan",1],["7b.4","Form fisik ditandatangani dan nilai pembiayaan sesuai input",0],["7b.5","Surat Persetujuan Pasangan ditandatangani dan identitas sesuai KTP pasangan",1]];
+const DEB=[["nama","Nama calon debitur","Budi Santoso"],["member","No. member","A06559"],["cabang","Cabang Indogrosir","31-Makassar"],["nik","NIK","7371xxxxxxxxxxxx"],["tgl","Tanggal pengajuan",new Date().toISOString().slice(0,10)],["analis","Analis","Analis Kredit IMFS"]];
+const clone=o=>JSON.parse(JSON.stringify(o));
+let cfg=clone(DEF);
+const blankForm=()=>({deb:Object.fromEntries(DEB.map(d=>[d[0],d[2]])),scr:SCR.map(()=>"Ya"),chk:CHK.map(()=>"Ya"),
+  sel:{kawin:"Menikah",slik:"Kol 1",frekC:"> 10x (Rutin/Stabil)",frekK:"7x - 10x (Cukup Rutin)",milik:"Milik Sendiri",pangsa:"> 70%",jaminan:"Persediaan Barang (Daftar Persediaan)",lokasi:"< 5 KM",saing:"0 - 2"},
+  plafon:50000000,belanja:50000000,final:"__sys",note:"",approver:""});
+let form=blankForm();
+try{const f=JSON.parse(localStorage.getItem("pbm_form")||"null");if(f&&f.deb)form=Object.assign(blankForm(),f)}catch(e){}
+try{const c=JSON.parse(localStorage.getItem("pbm_cfg")||"null");if(c&&c.crit)cfg=c}catch(e){}
+
+/* ---------------- helpers ---------------- */
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const fmt=n=>(Math.round(n*100)/100).toLocaleString("id-ID",{maximumFractionDigits:2});
+const rp=n=>"Rp "+Math.round(n||0).toLocaleString("id-ID");
+const conv=lv=>{const top=cfg.levels.length,d=top-cfg.subtr;return d?Math.max(0,(lv-cfg.subtr))/d:0};
+const levelOf=(grp,label)=>{const r=(cfg.crit[grp]||[]).find(c=>c[0]===label);return r?r[1]:null};
+
+/* ---------------- calculation ---------------- */
+function calc(){
+  const r={rows:[],cat:{},total:0};
+  const ratio=form.belanja>0?form.plafon/form.belanja:null;
+  const rc=cfg.crit.rasio;
+  form.sel.rasio=ratio==null?"":(ratio<=1?rc[0][0]:ratio<=1.2?rc[1][0]:rc[2][0]);
+  for(const [id,cat,name,grp] of SUBS){
+    const lab=form.sel[id]||"",lv=levelOf(grp,lab),max=+cfg.maxPoin[id]||0;
+    const p=lv==null?0:conv(lv)*max;
+    r.rows.push({id,cat,name,grp,lab,lv,max,p});
+  }
+  for(const c of CATS){
+    const rows=r.rows.filter(x=>x.cat===c),got=rows.reduce((a,b)=>a+b.p,0),mx=rows.reduce((a,b)=>a+b.max,0),w=(+cfg.bobot[c]||0)/100;
+    const sk=mx?got/mx*100:0;r.cat[c]={got,mx,w,sk,wt:sk*w};r.total+=sk*w;
+  }
+  r.ratio=ratio;
+  // screening
+  const kawinBelum=form.sel.kawin!=="Menikah";
+  const chkV=CHK.map((c,i)=>c[2]&&kawinBelum?"N/A":form.chk[i]);
+  const grp=pre=>{const v=chkV.filter((x,i)=>CHK[i][0].startsWith(pre));return v.some(x=>!x)?"":v.includes("Tidak")?"Tidak":"Ya"};
+  r.scrV=[...form.scr,grp("7a"),grp("7b")];r.chkV=chkV;
+  r.screen=r.scrV.includes("Tidak")?"TIDAK LOLOS":r.scrV.every(x=>x==="Ya")&&form.sel.kawin?"LOLOS":"BELUM LENGKAP";
+  r.scored=r.screen==="LOLOS";
+  const dm=[...cfg.decision].sort((a,b)=>b[1]-a[1]).find(d=>r.total>=+d[1]-1e-9);
+  r.risk=dm?dm[0]:"-";r.rec=dm?dm[3]:"-";
+  if(r.screen==="TIDAK LOLOS"){r.rec="Tolak (tidak lolos screening)";r.risk="-"}
+  else if(r.screen!=="LOLOS"){r.rec="Menunggu hasil screening";r.risk="-"}
+  r.final=form.final==="__sys"?r.rec:form.final;
+  return r;
+}
+const tone=t=>/reject|tolak/i.test(t)?"bad":/review|escalat|tinggi|sedang|menunggu/i.test(t)?"warn":"ok";
+
+/* ---------------- render: penilaian ---------------- */
+function buildPenilaian(){
+  $("debitur").innerHTML=DEB.map(d=>`<div><label for="d_${d[0]}">${esc(d[1])}</label><input id="d_${d[0]}" data-deb="${d[0]}" ${d[0]==="tgl"?'type="date"':""}></div>`).join("");
+  $("scr").innerHTML=`<tr><td>0</td><td>Status Perkawinan</td><td>Menentukan berkas pasangan wajib atau tidak</td><td><select data-sel="kawin"><option value="">Pilih</option>${cfg.crit.kawin.map(c=>`<option>${esc(c[0])}</option>`).join("")}</select></td></tr>`+SCR.map((s,i)=>`<tr><td>${s[0]}</td><td>${esc(s[1])}</td><td>${esc(s[2])}</td><td><select data-scr="${i}"><option value="">Pilih</option><option>Ya</option><option>Tidak</option></select></td></tr>`).join("")
+   +`<tr><td>7a</td><td>Kelengkapan dokumen</td><td>Semua berkas wajib tersedia</td><td id="s7a"></td></tr><tr><td>7b</td><td>Kesesuaian dokumen</td><td>Isi berkas sesuai data input</td><td id="s7b"></td></tr>`;
+  $("chk").innerHTML=CHK.map((c,i)=>`<tr data-sp="${c[2]}"><td>${c[0]}</td><td>${esc(c[1])}${c[2]?' <span class="sample">(jika menikah)</span>':""}</td><td><select data-chk="${i}"><option value="">Pilih</option><option>Ya</option><option>Tidak</option><option>N/A</option></select></td></tr>`).join("");
+  buildScTable();
+}
+function buildScTable(){
+  $("sc").innerHTML=SUBS.map(([id,cat,name,grp])=>`<tr><td>${cat}</td><td>${esc(name)}</td><td>${id==="rasio"?'<span id="rasioLab" class="sample"></span>':id==="kawin"?'<span id="kawinLab"></span> <span class="sample">(dari screening)</span>':`<select data-sel="${id}">${(cfg.crit[grp]||[]).map(c=>`<option>${esc(c[0])}</option>`).join("")}</select>`}</td><td class="n" id="p_${id}"></td><td class="n" id="m_${id}"></td></tr>`).join("");
+}
+function fillPenilaian(){
+  document.querySelectorAll("[data-deb]").forEach(e=>e.value=form.deb[e.dataset.deb]||"");
+  document.querySelectorAll("[data-scr]").forEach(e=>e.value=form.scr[+e.dataset.scr]||"");
+  document.querySelectorAll("[data-sel]").forEach(e=>e.value=form.sel[e.dataset.sel]||"");
+  $("plafon").value=form.plafon?Number(form.plafon).toLocaleString("id-ID"):"";
+  $("belanja").value=form.belanja?Number(form.belanja).toLocaleString("id-ID"):"";
+}
+function gauge(v,col){
+  const a=Math.PI*(1-v/100),x=150+120*Math.cos(a),y=140-120*Math.sin(a);
+  $("gsvg").innerHTML=`<path d="M30 140 A120 120 0 0 1 270 140" fill="none" stroke="var(--soft)" stroke-width="18" stroke-linecap="round"/>`+
+   (v>0?`<path id="arc" d="M30 140 A120 120 0 0 1 ${x.toFixed(1)} ${y.toFixed(1)}" fill="none" stroke="${col}" stroke-width="18" stroke-linecap="round"/>`:"");
+}
+function render(){
+  const r=calc();
+  r.rows.forEach(x=>{const p=$("p_"+x.id),m=$("m_"+x.id);if(p)p.textContent=fmt(x.p);if(m)m.textContent=fmt(x.max)});
+  $("rasio").value=r.ratio==null?"":fmt(r.ratio)+"x";$("rasioLab").textContent=form.sel.rasio||"Isi plafon dan pembelanjaan";
+  const kb=form.sel.kawin!=="Menikah";
+  document.querySelectorAll("[data-chk]").forEach(e=>{const i=+e.dataset.chk;e.value=CHK[i][2]&&kb?"N/A":(form.chk[i]||"")});
+  document.querySelectorAll("tr[data-sp='1']").forEach(tr=>tr.style.display=kb?"none":"");
+  $("kawinLab").textContent=form.sel.kawin||"Belum dipilih";
+  $("scCard").style.display=r.scored?"":"none";
+  $("scLock").style.display=r.scored?"none":"";
+  $("scLock").textContent=r.screen==="TIDAK LOLOS"?"Credit Scoring 5C tidak dilanjutkan karena calon debitur TIDAK LOLOS screening.":"Credit Scoring 5C akan muncul setelah screening dinyatakan LOLOS. Lengkapi Status Perkawinan dan semua kriteria screening.";
+  const sp=`<span class="pill p-${r.screen==="LOLOS"?"ok":r.screen==="TIDAK LOLOS"?"bad":"warn"}">${r.screen}</span>`;
+  document.querySelectorAll('[data-bar="scr"]').forEach(b=>b.innerHTML=`<span class="t">Hasil screening: ${sp}</span><span class="btns">${r.scored?'<button class="pri" data-act="toScore">Lanjut ke Credit Scoring</button>':r.screen==="TIDAK LOLOS"?'<button class="pri" data-act="toHasil">Lanjut ke keputusan (Tolak)</button>':'<button disabled>Lengkapi screening</button>'}</span>`);
+  document.querySelectorAll('[data-bar="sc"]').forEach(b=>b.innerHTML=`<span class="t">Total Score: ${fmt(r.total)} · ${esc(r.risk)} · Rekomendasi: <span class="pill p-${tone(r.rec)}">${esc(r.rec)}</span></span><span class="btns"><button class="pri" data-act="approve">Approve rekomendasi</button><button data-act="toHasil">Ubah keputusan</button></span>`);
+  const st=v=>v==="Ya"?'<span class="pill p-ok">Ya</span>':v==="Tidak"?'<span class="pill p-bad">Tidak</span>':'<span class="pill p-warn">Belum diisi</span>';
+  $("s7a").innerHTML=st(r.scrV[6]);$("s7b").innerHTML=st(r.scrV[7]);
+  const t=tone(r.rec),col=`var(--${t})`;
+  $("tot").textContent=r.scored?fmt(r.total):"-";gauge(r.scored?r.total:0,col);
+  const sEl=$("stamp");sEl.textContent=r.rec;sEl.style.color=col;
+  $("bars").innerHTML=CATS.map(c=>{const k=r.cat[c];return `<div><span>${c}</span><span class="bar"><i style="width:${Math.min(100,k.sk)}%"></i></span><span class="n" style="text-align:right">${fmt(k.wt)}/${fmt(k.w*100)}</span></div>`}).join("");
+  $("bars").style.display=r.scored?"":"none";
+  $("scrStat").innerHTML=`Screening: <span class="pill p-${r.screen==="LOLOS"?"ok":r.screen==="TIDAK LOLOS"?"bad":"warn"}">${r.screen}</span> · Kategori: <b>${esc(r.risk)}</b>`;
+  renderParamDynamic(r);renderReport(r);
+  try{localStorage.setItem("pbm_form",JSON.stringify(form))}catch(e){}
+  return r;
+}
+
+/* ---------------- render: parameter & matrix ---------------- */
+function buildParam(){
+  $("mpT").innerHTML=SUBS.map(([id,cat,name])=>`<tr><td>${cat}</td><td>${esc(name)}</td><td class="n"><input class="num" type="number" step="any" data-mp="${id}" value="${esc(cfg.maxPoin[id])}"></td></tr>`).join("")+`<tr><td colspan="2"><b>Total</b></td><td class="n"><b id="mpTot"></b></td></tr>`;
+  $("bbT").innerHTML=CATS.map(c=>`<tr><td>${c}</td><td class="n"><input class="num" type="number" step="any" data-bb="${c}" value="${esc(cfg.bobot[c])}"></td><td class="n" id="bt_${c}"></td><td id="bc_${c}"></td></tr>`).join("")+`<tr><td><b>Total</b></td><td class="n"><b id="bbTot"></b></td><td class="n"><b id="bmTot"></b></td><td id="bcTot"></td></tr>`;
+  $("maxScore").value=cfg.maxScore;$("subtr").value=cfg.subtr;
+  $("dmT").innerHTML=cfg.decision.map((d,i)=>`<tr><td><input data-dm="${i}:0" value="${esc(d[0])}"></td><td class="n"><input class="num" type="number" step="any" data-dm="${i}:1" value="${esc(d[1])}"></td><td class="n"><input class="num" type="number" step="any" data-dm="${i}:2" value="${esc(d[2])}"></td><td><input data-dm="${i}:3" value="${esc(d[3])}"></td></tr>`).join("");
+  const grpMax=g=>SUBS.filter(s=>s[3]===g).map(s=>({cat:s[1],id:s[0]}));
+  const groups=[...new Set(SUBS.map(s=>s[3]))];
+  $("psT").innerHTML=groups.map(g=>{const owners=grpMax(g),cat=owners.map(o=>o.cat).join(" & "),name=SUBS.find(s=>s[3]===g)[2];
+    return cfg.crit[g].map((c,j)=>`<tr><td>${cat}</td><td>${esc(name)}</td><td>${esc(c[0])}</td><td class="n"><select class="num" data-lv="${g}:${j}">${cfg.levels.map((_,k)=>`<option ${k+1===c[1]?"selected":""}>${k+1}</option>`).join("")}</select></td><td class="n" id="cv_${g}_${j}"></td><td class="n" id="pp_${g}_${j}"></td></tr>`).join("")}).join("");
+}
+function renderParamDynamic(){
+  let tot=0;SUBS.forEach(s=>tot+=+cfg.maxPoin[s[0]]||0);$("mpTot").textContent=fmt(tot);
+  let bt=0;
+  CATS.forEach(c=>{const m=SUBS.filter(s=>s[1]===c).reduce((a,s)=>a+(+cfg.maxPoin[s[0]]||0),0),b=+cfg.bobot[c]||0;bt+=b;
+    $("bt_"+c).textContent=fmt(m);$("bc_"+c).innerHTML=Math.abs(m-b)<1e-6?'<span class="pill p-ok">OK</span>':'<span class="pill p-bad">Tidak sesuai bobot</span>'});
+  $("bbTot").textContent=fmt(bt)+"%";$("bmTot").textContent=fmt(tot);
+  $("bcTot").innerHTML=Math.abs(tot-100)<1e-6&&Math.abs(bt-100)<1e-6?'<span class="pill p-ok">OK</span>':'<span class="pill p-bad">Total harus 100</span>';
+  $("cvT").innerHTML=cfg.levels.map((n,k)=>`<tr><td>${k+1}</td><td>${esc(n)}</td><td class="n">${fmt(conv(k+1)*100)}%</td><td class="n">${fmt(conv(k+1)*cfg.maxScore)}</td></tr>`).join("");
+  for(const g of Object.keys(cfg.crit)){const owners=SUBS.filter(s=>s[3]===g);
+    cfg.crit[g].forEach((c,j)=>{const cv=$("cv_"+g+"_"+j),pp=$("pp_"+g+"_"+j);if(!cv)return;cv.textContent=fmt(conv(c[1])*100)+"%";pp.textContent=owners.map(o=>fmt(conv(c[1])*(+cfg.maxPoin[o[0]]||0))).join(" / ")})}
+}
+
+/* ---------------- render: report ---------------- */
+function renderReport(r){
+  const d=form.deb,opts=["__sys",...new Set(cfg.decision.map(x=>x[3])),"Tolak (tidak lolos screening)"];
+  const fd=$("finalDec");if(document.activeElement!==fd){fd.innerHTML=opts.map(o=>`<option value="${esc(o)}">${o==="__sys"?"Sesuai rekomendasi sistem ("+esc(r.rec)+")":esc(o)}</option>`).join("");fd.value=opts.includes(form.final)?form.final:"__sys"}
+  const t=tone(r.final);
+  $("report").innerHTML=`<div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:flex-start">
+   <div><div style="font-size:12px;color:#5b6878">PT Indomarco Financial Services · Pembiayaan Belanja Member</div><h2 style="margin:2px 0 0;font-size:24px">Hasil Credit Scoring</h2></div>
+   <div style="text-align:right"><div style="font-size:40px;font-weight:800;line-height:1">${r.scored?fmt(r.total):"-"}</div><div style="font-size:12px;color:#5b6878">Total Score / 100</div></div></div>
+   <h3>Data calon debitur</h3><div class="kv">${DEB.map(x=>`<div><span>${esc(x[1])}:</span> ${esc(d[x[0]])}</div>`).join("")}<div><span>Status perkawinan:</span> ${esc(form.sel.kawin||"-")}</div></div>
+   <h3>Screening</h3><p style="margin:0">Hasil: <b>${r.screen} SCREENING</b>${r.screen!=="LOLOS"?" · Kriteria tidak terpenuhi/belum diisi: "+esc(r.scrV.map((v,i)=>v==="Ya"?null:(i<6?SCR[i][1]:i===6?"Kelengkapan Dokumen":"Kesesuaian Dokumen")).filter(Boolean).join(", ")):""}</p>
+   ${r.scored?`<h3>Rincian scoring</h3><div class="scroll"><table><thead><tr><th>Kategori</th><th>Sub-parameter</th><th>Kriteria</th><th class="n">Level</th><th class="n">Poin</th><th class="n">Maks</th></tr></thead><tbody>
+   ${r.rows.map(x=>`<tr><td>${x.cat}</td><td>${esc(x.name)}</td><td>${esc(x.lab)}${x.id==="rasio"&&r.ratio!=null?" ("+fmt(r.ratio)+"x)":""}</td><td class="n">${x.lv??"-"}</td><td class="n">${fmt(x.p)}</td><td class="n">${fmt(x.max)}</td></tr>`).join("")}</tbody></table></div>
+   <h3>Ringkasan per kategori</h3><div class="scroll"><table><thead><tr><th>Kategori</th><th class="n">Bobot</th><th class="n">Poin</th><th class="n">Skor kategori</th><th class="n">Skor tertimbang</th></tr></thead><tbody>
+   ${CATS.map(c=>{const k=r.cat[c];return `<tr><td>${c}</td><td class="n">${fmt(k.w*100)}%</td><td class="n">${fmt(k.got)} / ${fmt(k.mx)}</td><td class="n">${fmt(k.sk)}</td><td class="n">${fmt(k.wt)}</td></tr>`}).join("")}
+   <tr><td colspan="4"><b>Total Score</b></td><td class="n"><b>${fmt(r.total)}</b></td></tr></tbody></table></div>`:`<p style="margin:12px 0 0;color:#5b6878">Credit Scoring 5C tidak dihitung karena screening ${r.screen==="TIDAK LOLOS"?"tidak lolos":"belum lengkap"}.</p>`}
+   <h3>Keputusan</h3><div class="kv"><div><span>Kategori risiko:</span> <b>${esc(r.risk)}</b></div><div><span>Rekomendasi sistem:</span> <b>${esc(r.rec)}</b></div>
+   <div><span>Keputusan akhir:</span> <b style="color:${t==="bad"?"#b42318":t==="warn"?"#a56a00":"#1d7a46"}">${esc(r.final)}</b></div><div><span>Diputuskan oleh:</span> ${esc(form.approver||"-")}</div></div>
+   ${form.note?`<p style="margin:8px 0 0"><span style="color:#5b6878">Catatan:</span> ${esc(form.note)}</p>`:""}`;
+}
+
+/* ---------------- PDF writer (tanpa library) ---------------- */
+const HW=[278,278,355,556,556,889,667,191,333,333,389,584,278,333,278,278,556,556,556,556,556,556,556,556,556,556,278,278,584,584,584,556,1015,667,667,722,722,667,611,778,722,278,500,667,556,833,722,778,667,778,722,667,611,722,667,944,667,667,611,278,278,278,469,556,333,556,556,500,556,556,278,556,556,222,222,500,222,833,556,556,556,556,333,500,278,556,500,722,500,500,500,334,260,334,584];
+const asc=s=>String(s??"").replace(/≥/g,">=").replace(/≤/g,"<=").replace(/÷/g,"/").replace(/[–—]/g,"-").replace(/·/g,"-").replace(/[^\x20-\x7E]/g,"");
+const tw=(s,sz,b)=>[...s].reduce((a,c)=>a+(HW[c.charCodeAt(0)-32]||556),0)*sz/1000*(b?1.06:1);
+function wrap(s,w,sz,b){const out=[];let line="";for(const word of asc(s).split(" ")){const t=line?line+" "+word:word;if(tw(t,sz,b)>w&&line){out.push(line);line=word}else line=t}out.push(line);return out}
+function buildPDF(r){
+  const W=595,H=842,M=40;const pages=[];let cur,y;
+  const pe=s=>s.replace(/\\/g,"\\\\").replace(/\(/g,"\\(").replace(/\)/g,"\\)");
+  const col=h=>[0,2,4].map(i=>(parseInt(h.substr(i,2),16)/255).toFixed(3)).join(" ");
+  const newPage=()=>{cur=[];pages.push(cur);y=H-M};
+  const text=(x,yy,s,sz=10,b=false,c="14202e")=>cur.push(`BT /${b?"F2":"F1"} ${sz} Tf ${col(c)} rg ${x.toFixed(1)} ${yy.toFixed(1)} Td (${pe(asc(s))}) Tj ET`);
+  const rect=(x,yy,w,h,c)=>cur.push(`${col(c)} rg ${x} ${yy.toFixed(1)} ${w} ${h.toFixed(1)} re f`);
+  const hline=(yy,c="dfe5ec")=>cur.push(`${col(c)} RG 0.6 w ${M} ${yy.toFixed(1)} m ${W-M} ${yy.toFixed(1)} l S`);
+  const need=h=>{if(y-h<M+20)newPage()};
+  const head=s=>{need(30);y-=14;text(M,y,s,11.5,true,"1f4e78");y-=8};
+  const table=(cols,rows,opt={})=>{const sz=8.6,lh=11;
+    const drawRow=(cells,isH)=>{const lines=cells.map((c,i)=>wrap(c,cols[i].w-8,sz,isH||opt.boldLast&&cells===rows[rows.length-1]));const h=Math.max(...lines.map(l=>l.length))*lh+6;need(h);
+      if(isH)rect(M,y-h,W-2*M,h,"eaf1f8");let x=M;
+      lines.forEach((ls,i)=>{ls.forEach((l,k)=>{const b=isH||(opt.boldLast&&cells===rows[rows.length-1]);const tx=cols[i].r?x+cols[i].w-4-tw(l,sz,b):x+4;text(tx,y-10-k*lh,l,sz,b,isH?"334455":"14202e")});x+=cols[i].w});
+      y-=h;hline(y)};
+    drawRow(cols.map(c=>c.t),true);rows.forEach(rw=>drawRow(rw,false))};
+  newPage();
+  rect(0,H-78,W,78,"1f4e78");
+  text(M,H-34,"Hasil Credit Scoring PBM",18,true,"ffffff");
+  text(M,H-52,"PT Indomarco Financial Services - Pembiayaan Belanja Member",9.5,false,"cfe0f0");
+  const sc=r.scored?fmt(r.total):"-";text(W-M-tw(sc,26,true),H-46,sc,26,true,"ffffff");text(W-M-tw("Total Score / 100",8.5),H-62,"Total Score / 100",8.5,false,"cfe0f0");
+  y=H-96;
+  const t=tone(r.final),tc=t==="bad"?"b42318":t==="warn"?"a56a00":"1d7a46";
+  rect(M,y-46,W-2*M,46,t==="bad"?"fdecea":t==="warn"?"fff4e0":"e7f5ec");
+  text(M+12,y-18,"KEPUTUSAN AKHIR",8.5,true,tc);text(M+12,y-36,r.final,15,true,tc);
+  const rk="Rekomendasi sistem: "+r.rec;text(W-M-12-tw(rk,9),y-18,rk,9,false,"334455");
+  const ks="Kategori risiko: "+r.risk;text(W-M-12-tw(ks,9),y-32,ks,9,false,"334455");
+  y-=56;
+  head("Data calon debitur");
+  const half=(W-2*M)/2;DEB.forEach((d,i)=>{if(i%2===0){need(14);y-=13}text(M+(i%2)*half,y,d[1]+": ",9,false,"5b6878");text(M+(i%2)*half+tw(d[1]+": ",9),y,form.deb[d[0]]||"-",9,true)});
+  y-=4;head("Credit screening");
+  table([{t:"No",w:34},{t:"Kriteria",w:200},{t:"Rule",w:205},{t:"Status",w:76}],
+   [["0","Status Perkawinan","Menentukan berkas pasangan",form.sel.kawin||"Belum diisi"],...SCR.map((s,i)=>[s[0],s[1],s[2],r.scrV[i]||"Belum diisi"]),["7a","Kelengkapan Dokumen","Semua berkas wajib tersedia",r.scrV[6]||"Belum diisi"],["7b","Kesesuaian Dokumen","Isi berkas sesuai data input",r.scrV[7]||"Belum diisi"],["","Hasil screening","",r.screen]],{boldLast:true});
+  if(r.scored){head("Rincian scoring 5C");
+  table([{t:"Kategori",w:62},{t:"Sub-parameter",w:150},{t:"Kriteria",w:183},{t:"Level",w:36,r:1},{t:"Poin",w:42,r:1},{t:"Maks",w:42,r:1}],
+   r.rows.map(x=>[x.cat,x.name,x.lab+(x.id==="rasio"&&r.ratio!=null?" ("+fmt(r.ratio)+"x)":""),String(x.lv??"-"),fmt(x.p),fmt(x.max)]));
+  if(form.plafon){need(14);y-=12;text(M,y,`Plafon permohonan ${rp(form.plafon)}  -  Rata-rata pembelanjaan bulanan ${rp(form.belanja)}`,8.5,false,"5b6878")}
+  head("Ringkasan per kategori");
+  table([{t:"Kategori",w:115},{t:"Bobot",w:70,r:1},{t:"Poin",w:110,r:1},{t:"Skor kategori",w:110,r:1},{t:"Skor tertimbang",w:110,r:1}],
+   [...CATS.map(c=>{const k=r.cat[c];return [c,fmt(k.w*100)+"%",fmt(k.got)+" / "+fmt(k.mx),fmt(k.sk),fmt(k.wt)]}),["Total Score","","","",fmt(r.total)]],{boldLast:true});}
+  else{head("Credit scoring 5C");need(14);y-=13;text(M,y,"Tidak dihitung karena screening "+(r.screen==="TIDAK LOLOS"?"tidak lolos.":"belum lengkap."),9.5)}
+  head("Decision matrix yang dipakai");
+  table([{t:"Kategori risiko",w:170},{t:"Rentang skor",w:120},{t:"Rekomendasi",w:225}],cfg.decision.map(d=>[d[0]+(d[0]===r.risk?"  (hasil)":""),d[1]+" - "+d[2],d[3]]));
+  head("Catatan keputusan");
+  wrap(form.note||"-",W-2*M,9.5).forEach(l=>{need(13);y-=13;text(M,y,l,9.5)});
+  need(30);y-=22;text(M,y,"Dianalisa oleh: ",9,false,"5b6878");text(M+tw("Dianalisa oleh: ",9),y,form.deb.analis||"-",9,true);
+  text(M+half,y,"Diputuskan oleh: ",9,false,"5b6878");text(M+half+tw("Diputuskan oleh: ",9),y,form.approver||"-",9,true);
+  const stamp="Dibuat "+new Date().toLocaleString("id-ID")+" dari prototype Credit Scoring PBM";
+  pages.forEach((p,i)=>{cur=p;text(M,24,stamp,7.5,false,"8899aa");const pg=`Hal ${i+1}/${pages.length}`;text(W-M-tw(pg,7.5),24,pg,7.5,false,"8899aa")});
+  // assemble
+  const objs=[];const add=s=>{objs.push(s);return objs.length};
+  const f1=add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>"),f2=add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>");
+  const pagesId=objs.length+pages.length*2+1;const kids=[];
+  pages.forEach(p=>{const s=p.join("\n");const c=add(`<< /Length ${s.length} >>\nstream\n${s}\nendstream`);kids.push(add(`<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /Font << /F1 ${f1} 0 R /F2 ${f2} 0 R >> >> /Contents ${c} 0 R >>`))});
+  add(`<< /Type /Pages /Kids [${kids.map(k=>k+" 0 R").join(" ")}] /Count ${kids.length} >>`);
+  const cat=add(`<< /Type /Catalog /Pages ${pagesId} 0 R >>`);
+  let out="%PDF-1.4\n";const offs=[];objs.forEach((o,i)=>{offs.push(out.length);out+=`${i+1} 0 obj\n${o}\nendobj\n`});
+  const xref=out.length;out+=`xref\n0 ${objs.length+1}\n0000000000 65535 f \n`+offs.map(o=>String(o).padStart(10,"0")+" 00000 n \n").join("")+`trailer\n<< /Size ${objs.length+1} /Root ${cat} 0 R >>\nstartxref\n${xref}\n%%EOF`;
+  return new TextEncoder().encode(out);
+}
+window.__pbm={calc,buildPDF,form:()=>form,cfg:()=>cfg};
+
+/* ---------------- shared state (db) ---------------- */
+let db=null,dl=null,hist=[];
+function setSync(s){$("sync").textContent=s}
+function applyCfg(c){if(!c||!c.crit)return;cfg=Object.assign(clone(DEF),c);buildParam();buildScTable();fillPenilaian();render()}
+(async()=>{
+  try{dl=await window.claude?.use?.("downloads")}catch(e){dl=null}
+  try{db=await window.claude?.use?.("db")}catch(e){db=null}
+  if(!db){setSync("Mode lokal (tersimpan di browser ini)");$("histHint").textContent="Riwayat bersama tidak tersedia di tampilan ini. Riwayat disimpan di browser ini saja.";loadLocalHist();return}
+  setSync("Menghubungkan...");
+  const tm=setTimeout(()=>setSync("Data bersama belum bisa dijangkau"),10000);
+  db.doc("config/main").onSnapshot(s=>{if(!s.metadata.fromCache)clearTimeout(tm);setSync("Tersinkron · real time");
+    if(s.exists){const d=s.data();if(!s.metadata.hasPendingWrites){applyCfg(d.cfg);$("cfgMsg").textContent=d.by?`Parameter terakhir disimpan oleh ${d.by} (${new Date(d.at).toLocaleString("id-ID")}).`:""}}},
+   e=>{clearTimeout(tm);setSync("Mode lokal")});
+  db.collection("history").orderBy("at","desc").limit(200).onSnapshot(s=>{hist=s.docs.map(d=>({id:d.id,...d.data()}));renderHist()},e=>{loadLocalHist()});
+})();
+function loadLocalHist(){try{hist=JSON.parse(localStorage.getItem("pbm_hist")||"[]")}catch(e){hist=[]}renderHist()}
+function renderHist(){
+  $("hT").innerHTML=hist.length?hist.map((h,i)=>`<tr><td>${esc(new Date(h.at).toLocaleString("id-ID",{dateStyle:"medium",timeStyle:"short"}))}</td><td>${esc(h.form?.deb?.nama)}</td><td>${esc(h.form?.deb?.cabang)}</td><td class="n">${esc(fmt(+h.total||0))}</td><td>${esc(h.rec)}</td><td><span class="pill p-${tone(String(h.final))}">${esc(h.final)}</span></td><td>${esc(h.form?.deb?.analis)}</td><td><button data-open="${i}">Buka</button></td></tr>`).join(""):`<tr><td colspan="8" class="empty">Belum ada penilaian yang disimpan.</td></tr>`;
+}
+
+/* ---------------- events ---------------- */
+const num=v=>+String(v).replace(/[^\d]/g,"")||0;
+document.addEventListener("input",e=>{const t=e.target,d=t.dataset;
+  if(d.deb){form.deb[d.deb]=t.value;render()}
+  else if(d.scr){form.scr[+d.scr]=t.value;render()}
+  else if(d.chk){form.chk[+d.chk]=t.value;render()}
+  else if(d.sel){form.sel[d.sel]=t.value;if(d.sel==="kawin")document.querySelectorAll('[data-sel="kawin"]').forEach(x=>x.value=t.value);render()}
+  else if(t.id==="plafon"||t.id==="belanja"){form[t.id]=num(t.value);render()}
+  else if(d.mp){cfg.maxPoin[d.mp]=t.value===""?0:+t.value;render()}
+  else if(d.bb){cfg.bobot[d.bb]=t.value===""?0:+t.value;render()}
+  else if(d.dm){const [i,k]=d.dm.split(":").map(Number);cfg.decision[i][k]=k===1||k===2?+t.value:t.value;render()}
+  else if(d.lv){const [g,j]=d.lv.split(":");cfg.crit[g][+j][1]=+t.value;render()}
+  else if(t.id==="maxScore"||t.id==="subtr"){cfg[t.id]=+t.value;render()}
+  else if(t.id==="finalDec"){form.final=t.value;render()}
+  else if(t.id==="note"||t.id==="approver"){form[t.id]=t.value;render()}
+  if(d.mp||d.bb||d.dm||d.lv||t.id==="maxScore"||t.id==="subtr"){try{localStorage.setItem("pbm_cfg",JSON.stringify(cfg))}catch(e){}$("cfgMsg").textContent="Ada perubahan yang belum disimpan untuk semua pengguna."}
+});
+document.addEventListener("change",e=>{if(e.target.id==="plafon"||e.target.id==="belanja")fillPenilaian()});
+$("saveCfg").onclick=async()=>{const m=$("cfgMsg");
+  if(!db){m.textContent="Tersimpan di browser ini. Penyimpanan bersama hanya tersedia saat dibuka dari halaman artifact.";return}
+  $("saveCfg").disabled=true;m.textContent="Menyimpan...";
+  try{await db.doc("config/main").set({cfg:clone(cfg),by:form.deb.analis||"Analis",at:Date.now()});m.textContent="Tersimpan. Semua pengguna sekarang memakai parameter ini."}
+  catch(err){m.textContent=err?.code==="invalid_argument"?"Kamu tidak punya akses untuk mengubah parameter bersama.":"Gagal menyimpan, coba lagi."}
+  $("saveCfg").disabled=false};
+$("defCfg").onclick=()=>{cfg=clone(DEF);try{localStorage.setItem("pbm_cfg",JSON.stringify(cfg))}catch(e){}buildParam();buildScTable();fillPenilaian();render();$("cfgMsg").textContent="Kembali ke default Excel. Klik Simpan supaya berlaku untuk semua."};
+$("goHasil").onclick=()=>{location.hash="hasil"};
+document.addEventListener("click",e=>{const a=e.target.closest("[data-act]");if(!a)return;const k=a.dataset.act;
+  if(k==="toScore")$("scCard").scrollIntoView({behavior:"smooth",block:"start"});
+  else if(k==="toHasil")location.hash="hasil";
+  else if(k==="approve"){form.final="__sys";render();location.hash="hasil"}});
+$("resetForm").onclick=()=>{form=blankForm();Object.keys(form.deb).forEach(k=>{if(k!=="tgl"&&k!=="analis")form.deb[k]=""});form.scr=SCR.map(()=>"");form.chk=CHK.map(()=>"");form.sel.kawin="";fillPenilaian();render()};
+$("pdfBtn").onclick=async()=>{const m=$("hasilMsg"),r=calc();
+  const name=`Credit Scoring PBM - ${asc(form.deb.nama||"Debitur").replace(/[^\w ]/g,"").trim()} - ${form.deb.tgl||""}.pdf`;
+  const bytes=buildPDF(r);
+  if(dl){try{await dl.save({filename:name,data:new Blob([bytes])});m.textContent="PDF berhasil dibuat."}catch(err){m.textContent=err?.code==="declined"?"Download dibatalkan.":"Download tidak tersedia di tampilan ini. Buka halaman artifact di claude.ai."}}
+  else{const u=URL.createObjectURL(new Blob([bytes],{type:"application/pdf"}));const a=document.createElement("a");a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();m.textContent="Jika download tidak berjalan, buka halaman ini langsung dari claude.ai."}};
+$("saveHist").onclick=async()=>{const m=$("hasilMsg"),r=calc();
+  const rec={at:Date.now(),total:Math.round(r.total*100)/100,rec:r.rec,final:r.final,risk:r.risk,screen:r.screen,form:clone(form)};
+  if(db){$("saveHist").disabled=true;try{await db.collection("history").add(rec);m.textContent="Tersimpan ke riwayat bersama."}catch(err){m.textContent=err?.code==="quota_exceeded"?"Riwayat penuh. Hapus sebagian data dulu.":"Gagal menyimpan ke riwayat."}$("saveHist").disabled=false}
+  else{hist.unshift(rec);try{localStorage.setItem("pbm_hist",JSON.stringify(hist.slice(0,200)))}catch(e){}renderHist();m.textContent="Tersimpan ke riwayat (browser ini)."}};
+$("hT").onclick=e=>{const b=e.target.closest("[data-open]");if(!b)return;const h=hist[+b.dataset.open];if(!h?.form)return;form=Object.assign(blankForm(),clone(h.form));fillPenilaian();render();location.hash="penilaian"};
+
+/* ---------------- routing ---------------- */
+const VIEWS=["penilaian","parameter","hasil","riwayat"];
+function route(){const v=VIEWS.includes(location.hash.slice(1))?location.hash.slice(1):"penilaian";
+  VIEWS.forEach(x=>$("v-"+x).classList.toggle("on",x===v));document.querySelectorAll("#nav a").forEach(a=>a.classList.toggle("on",a.getAttribute("href")==="#"+v))}
+window.addEventListener("hashchange",route);
+
+buildPenilaian();buildParam();fillPenilaian();render();route();
+}
+</script>
+</body>
+</html>
